@@ -50,7 +50,7 @@ func (l *Ledger) Append(entry LedgerEntry) error {
 	if _, err := l.writer.Write(append(b, '\n')); err != nil {
 		return err
 	}
-	return nil
+	return l.writer.Flush()
 }
 
 func (l *Ledger) Close() error {

@@ -3,7 +3,9 @@ package producer
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -55,5 +57,30 @@ func TestLedgerAppendAndClose(t *testing.T) {
 	}
 	if i-1 != len(entries) {
 		t.Fatalf("line count mismatch: got %d want %d", i-1, len(entries))
+	}
+}
+
+// Flush на строку: строка читаема из файла до Close (kill -9 безопасность, spec §3.4).
+func TestAppendFlushesPerLine(t *testing.T) {
+	path := t.TempDir() + "/ledger.jsonl"
+	l, err := NewLedger(path)
+	if err != nil {
+		t.Fatalf("NewLedger: %v", err)
+	}
+	defer l.Close()
+	if err := l.Append(LedgerEntry{OrderID: "o1", Ts: time.Now(), Defect: DefectNone}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !strings.Contains(string(data), `"order_id":"o1"`) {
+		t.Fatalf("line not flushed before Close: %q", string(data))
 	}
 }
