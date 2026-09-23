@@ -8,11 +8,17 @@ import (
 	"strings"
 
 	"dqdemo/internal/checks"
-	"dqdemo/internal/producer"
+	
 )
 
 // Summary агрегирует findings, DLQ-статистику и (опционально) ledger
 // producer'а для сводки caught/total (spec §6).
+// ledgerLine — read‑only представление строки ledger (report не зависит от producer/kgo).
+type ledgerLine struct {
+    OrderID string `json:"order_id"`
+    Defect  string `json:"defect"`
+}
+
 type Summary struct {
 	Total     int
 	ByCheck   map[string]int
@@ -71,11 +77,11 @@ func (s *Summary) LoadLedger(path string) error {
 		if line == "" {
 			continue
 		}
-		var e producer.LedgerEntry
+		var e ledgerLine
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			return fmt.Errorf("ledger %s: %w", path, err)
 		}
-		tag := string(e.Defect)
+		tag := e.Defect
 		if tag == "none" {
 			continue
 		}

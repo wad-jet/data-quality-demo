@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"dqdemo/internal/checks"
+	"dqdemo/internal/report"
 )
 
 // ErrDrainTimeout — Close() не дождался опустошения очереди за CloseTimeout.
@@ -39,7 +40,7 @@ type Watcher struct {
 	cfg      Config
 	q        chan checks.Envelope
 	state    *checks.State
-	summary   *Summary
+	summary   *report.Summary
 	findings []checks.Finding
 
 	processedMu sync.Mutex
@@ -63,7 +64,7 @@ func New(cfg Config) *Watcher {
 		cfg:       cfg,
 		q:         make(chan checks.Envelope, cfg.BufferSize),
 		state:     checks.NewState(),
-		summary:   NewSummary(),
+		summary:   report.NewSummary(),
 		processed: make(map[int32]int64),
 	}
 }
@@ -135,7 +136,7 @@ func (w *Watcher) ProcessedCount() map[int32]int64 {
 }
 
 // Summary — валидно только после Close().
-func (w *Watcher) Summary() *Summary { return w.summary }
+func (w *Watcher) Summary() *report.Summary { return w.summary }
 
 // Findings — валидно только после Close(); для ComputeCaught.
 func (w *Watcher) Findings() []checks.Finding { return w.findings }
