@@ -30,9 +30,6 @@ var tagToCheck = map[string]string{
 // Фиксированный порядок вывода per_tag (spec §7).
 var tagOrder = []string{"missing", "dup", "typedrift", "ooo", "lag", "invalidjson"}
 
-// Schema-violation checks → DLQ (зеркало consumer isSchemaViolation, spec §5).
-var dlqChecks = []string{"field_missing", "type_drift", "invalid_json"}
-
 var validDefects = map[string]struct{}{
 	"none": {}, "missing": {}, "dup": {}, "typedrift": {}, "ooo": {}, "lag": {}, "invalidjson": {},
 }
@@ -284,12 +281,9 @@ func BuildReport(ledgerPath, findingsPath string, generatedAt time.Time) (Report
 	}
 
 	for _, f := range findings {
-		for _, c := range dlqChecks {
-			if f.Check == c {
-				rep.DLQ.Count++
-				rep.DLQ.ByReason[c]++
-				break
-			}
+		if checks.IsSchemaViolation(f.Check) {
+			rep.DLQ.Count++
+			rep.DLQ.ByReason[f.Check]++
 		}
 	}
 

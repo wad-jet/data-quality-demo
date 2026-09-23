@@ -142,7 +142,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 					slog.Error("append finding", "err", err)
 				}
 				c.summary.AddFinding(f)
-				if isSchemaViolation(f.Check) {
+				if checks.IsSchemaViolation(f.Check) {
 					hdr := []kgo.RecordHeader{{Key: "dq.reason", Value: []byte(f.Check)}}
 					if err := c.dlqProducer.SendWithHeaders(ctx, rec.Key, rec.Value, hdr); err != nil {
 						c.summary.AddDLQError()
@@ -176,13 +176,4 @@ func (c *Consumer) shutdown() error {
 	c.summary.ComputeCaught(c.findings)
 	slog.Info("summary", "report", c.summary.Render())
 	return nil
-}
-
-func isSchemaViolation(check string) bool {
-	switch check {
-	case "field_missing", "type_drift", "invalid_json":
-		return true
-	default:
-		return false
-	}
 }
