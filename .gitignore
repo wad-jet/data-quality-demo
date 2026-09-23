@@ -6,3 +6,4 @@ bin/
 producer-ledger.jsonl
 ledger.jsonl
 findings.jsonl
+audit-report.json

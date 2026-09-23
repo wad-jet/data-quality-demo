@@ -52,6 +52,7 @@ broker-down:
 build:
 	go build -o bin/producer ./cmd/producer
 	go build -o bin/consumer ./cmd/consumer
+	go build -o bin/audit ./cmd/audit
 
 # Run all Go tests
 test:
@@ -60,4 +61,4 @@ test:
 # Remove build artifacts and demo outputs
 clean:
 	rm -rf bin
-	rm -f ledger.jsonl producer-ledger.jsonl findings.jsonl *.log
+	rm -f ledger.jsonl producer-ledger.jsonl findings.jsonl audit-report.json *.log

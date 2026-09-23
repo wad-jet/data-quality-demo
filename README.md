@@ -19,7 +19,7 @@ make demo
 
 1. `docker compose up -d` — поднимает брокер RedPanda (localhost:9092).
 2. Ожидание готовности брокера (`nc -z localhost 9092`, до 60 с).
-3. `make build` — сборка `bin/producer` и `bin/consumer`.
+3. `make build` — сборка `bin/producer`, `bin/consumer` и `bin/audit`.
 4. `./bin/producer -count 1000 -rate 200 -seed 42 -ledger ledger.jsonl` — 1000 событий, детерминированная последовательность (seed 42), скорость 200 msg/с.
 5. `./bin/consumer -stop 1000 -ledger ledger.jsonl -findings findings.jsonl` — читает 1000 сообщений, печатает отчёт.
 6. `docker compose down` — broker останавливается (через trap — в т.ч. по Ctrl-C).
@@ -32,7 +32,7 @@ make demo
 
 ```
 make broker-up   # docker compose up -d
-make build       # go build -o bin/producer ./cmd/producer; go build -o bin/consumer ./cmd/consumer
+make build       # go build -o bin/producer ./cmd/producer; go build -o bin/consumer ./cmd/consumer; go build -o bin/audit ./cmd/audit
 ./bin/producer -count 1000 -rate 200 -seed 42 -ledger ledger.jsonl
 ./bin/consumer -stop 1000 -ledger ledger.jsonl -findings findings.jsonl
 make broker-down # docker compose down
@@ -70,6 +70,21 @@ make broker-down # docker compose down
 **Ledger** — файл, указанный в `-ledger` у producer'а (дефолт `producer-ledger.jsonl`; в `make demo` передаётся `ledger.jsonl`): одна строка на отправленное сообщение (включая dup-копии) — `{"seq":1,"order_id":"o-000001","ts":"2026-09-23T14:00:00Z","defect":"missing"}`, `defect` ∈ `missing | dup | typedrift | ooo | lag | invalidjson | none`. Это ground truth для caught/total.
 
 **DLQ topic `dq.orders.dlq`** — только schema-violations: `field_missing`, `type_drift`, `invalid_json` (оригинальный payload + header `dq.reason`). `duplicate`/`out_of_order`/`lag` — валидные сообщения: остаются в основном топике и фиксируются только findings.
+
+## Аудит (audit)
+
+Независимая проверка качества по готовым файлам (без брокера):
+
+    make build   # собирает и bin/audit
+    ./bin/audit -ledger ledger.jsonl -findings findings.jsonl -out audit-report.json
+
+- В stdout — таблица precision/recall по 6 дефектам, DLQ по причинам,
+  таймлайн, overall; в `audit-report.json` — структурированный отчёт.
+- Ожидаемо (дет-режим seed 42): recall = 100% по всем тегам;
+  precision = 100% для missing/typedrift/dup/invalidjson;
+  ooo (и, в зависимости от тайминга, lag) — precision < 100%
+  (кросс-срабатывание «старого ts» — см. справку).
+- Форматы данных и формулы метрик: `manual_docs/reference/data-formats.md`.
 
 ## Ссылки
 
