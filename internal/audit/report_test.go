@@ -42,7 +42,7 @@ func TestRenderHuman(t *testing.T) {
 	}
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	if len(lines) != 6 {
-		t.Fatalf("expected 7 lines, got %d:\n%s", len(lines), out)
+		t.Fatalf("expected 6 lines, got %d:\n%s", len(lines), out)
 	}
 }
 

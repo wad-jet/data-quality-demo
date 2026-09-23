@@ -19,7 +19,7 @@ make demo
 
 1. `docker compose up -d` — поднимает брокер RedPanda (localhost:9092).
 2. Ожидание готовности брокера (`nc -z localhost 9092`, до 60 с).
-3. `make build` — сборка `bin/producer` и `bin/consumer`.
+3. `make build` — сборка `bin/producer`, `bin/consumer` и `bin/audit`.
 4. `./bin/producer -count 1000 -rate 200 -seed 42 -ledger ledger.jsonl` — 1000 событий, детерминированная последовательность (seed 42), скорость 200 msg/с.
 5. `./bin/consumer -stop 1000 -ledger ledger.jsonl -findings findings.jsonl` — читает 1000 сообщений, печатает отчёт.
 6. `docker compose down` — broker останавливается (через trap — в т.ч. по Ctrl-C).
@@ -32,7 +32,7 @@ make demo
 
 ```
 make broker-up   # docker compose up -d
-make build       # go build -o bin/producer ./cmd/producer; go build -o bin/consumer ./cmd/consumer
+make build       # go build -o bin/producer ./cmd/producer; go build -o bin/consumer ./cmd/consumer; go build -o bin/audit ./cmd/audit
 ./bin/producer -count 1000 -rate 200 -seed 42 -ledger ledger.jsonl
 ./bin/consumer -stop 1000 -ledger ledger.jsonl -findings findings.jsonl
 make broker-down # docker compose down

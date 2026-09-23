@@ -61,4 +61,4 @@ test:
 # Remove build artifacts and demo outputs
 clean:
 	rm -rf bin
-	rm -f ledger.jsonl producer-ledger.jsonl findings.jsonl *.log
+	rm -f ledger.jsonl producer-ledger.jsonl findings.jsonl audit-report.json *.log
