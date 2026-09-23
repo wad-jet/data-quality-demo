@@ -11,15 +11,15 @@ P2 — опционально.
 - Сервисы `cmd/producer` и `cmd/consumer`, RedPanda через docker-compose.
 - 5 проверок качества (6 finding-типов): field_missing, type_drift,
   invalid_json, duplicate, out_of_order, lag.
-- DLQ для schema-violations, findings JSONL, агрегат в stdout с caught/total
-  по ledger.
+- DLQ для schema-violations, findings JSONL, агрегат (stderr, slog consumer'а)
+  с caught/total по ledger.
 - Тесты: unit (без сети) + integration (с брокером, skip без него).
 
 **DoD MVP:** `go build ./...`, `go vet ./...`, `go test ./...` зелёные;
 integration-тест PASS при поднятом брокере; демо-прогон (≥1000 событий)
 показывает caught/total ≥ 95% по каждому тегу и не пустой DLQ.
 
-## Фаза 1 (P0): Упакковка демо
+## Фаза 1 (P0): Упакковка демо — ✅ DONE (2026-09-23, merge d8e4641)
 
 Цель: демо запускается одной командой и воспроизводимо показывается.
 
