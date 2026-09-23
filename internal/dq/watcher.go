@@ -19,10 +19,10 @@ var ErrDrainTimeout = errors.New("dq: drain timeout")
 
 type Config struct {
 	Checks       checks.Registry
-	Findings     FindingsSink    // nil = не писать findings (в памяти аккумулируются)
-	DLQ          DLQSink         // nil = без DLQ
-	BufferSize   int             // ёмкость очереди, дефолт 1024
-	CloseTimeout time.Duration   // лимит дренажа в Close, дефолт 30s
+	Findings     FindingsSink  // nil = не писать findings (в памяти аккумулируются)
+	DLQ          DLQSink       // nil = без DLQ
+	BufferSize   int           // ёмкость очереди, дефолт 1024
+	CloseTimeout time.Duration // лимит дренажа в Close, дефолт 30s
 }
 
 // FindingsSink — куда воркер пишет findings; удовлетворяет *report.FindingsWriter (или любой тип с методом Append и Close).
@@ -40,11 +40,12 @@ type Watcher struct {
 	cfg      Config
 	q        chan checks.Envelope
 	state    *checks.State
-	summary   *report.Summary
+	summary  *report.Summary
 	findings []checks.Finding
 
 	processedMu sync.Mutex
-	processed   map[int32]int64
+	// watermark: сколько envelope ПРОРАБОТАНО воркером по партициям (не поставлено в очередь)
+	processed map[int32]int64
 
 	wg           sync.WaitGroup // Push: Add до отправки в канал; воркер: Done после обработки
 	workerCtx    context.Context
@@ -84,7 +85,15 @@ func (w *Watcher) run() {
 			w.process(env)
 			w.wg.Done()
 		case <-w.workerCtx.Done():
-			return
+			// ctx отменён (таймаут дренажа): освободить WaitGroup для остатка очереди
+			for {
+				select {
+				case <-w.q:
+					w.wg.Done()
+				default:
+					return
+				}
+			}
 		}
 	}
 }
@@ -95,13 +104,9 @@ func (w *Watcher) Push(env checks.Envelope) {
 	if w.closed.Load() {
 		panic("dq: Push after Close")
 	}
-		w.wg.Add(1)
-		w.q <- env
-		// Update processed count (watermark) as soon as the envelope is queued.
-		w.processedMu.Lock()
-		w.processed[env.Partition]++
-		w.processedMu.Unlock()
-	}
+	w.wg.Add(1)
+	w.q <- env
+}
 
 func (w *Watcher) process(env checks.Envelope) {
 	for _, f := range w.cfg.Checks.Inspect(w.workerCtx, env, w.state) {
@@ -122,6 +127,10 @@ func (w *Watcher) process(env checks.Envelope) {
 			// ошибка DLQ: envelope всё равно обработан (watermark продвигается)
 		}
 	}
+	// watermark продвигается после обработки envelope
+	w.processedMu.Lock()
+	w.processed[env.Partition]++
+	w.processedMu.Unlock()
 }
 
 // ProcessedCount — сколько envelope обработано по партициям (конкурентно-безопасно).
@@ -136,10 +145,20 @@ func (w *Watcher) ProcessedCount() map[int32]int64 {
 }
 
 // Summary — валидно только после Close().
-func (w *Watcher) Summary() *report.Summary { return w.summary }
+func (w *Watcher) Summary() *report.Summary {
+	if !w.closed.Load() {
+		panic("dq: Summary before Close")
+	}
+	return w.summary
+}
 
 // Findings — валидно только после Close(); для ComputeCaught.
-func (w *Watcher) Findings() []checks.Finding { return w.findings }
+func (w *Watcher) Findings() []checks.Finding {
+	if !w.closed.Load() {
+		panic("dq: Findings before Close")
+	}
+	return w.findings
+}
 
 // Close — ограниченный дренаж: дождись обработки всех Pushнутых envelope или
 // CloseTimeout (далее — принудительная отмена воркера; необработанный хвост

@@ -8,15 +8,14 @@ import (
 	"strings"
 
 	"dqdemo/internal/checks"
-	
 )
 
 // Summary агрегирует findings, DLQ-статистику и (опционально) ledger
 // producer'а для сводки caught/total (spec §6).
 // ledgerLine — read‑only представление строки ledger (report не зависит от producer/kgo).
 type ledgerLine struct {
-    OrderID string `json:"order_id"`
-    Defect  string `json:"defect"`
+	OrderID string `json:"order_id"`
+	Defect  string `json:"defect"`
 }
 
 type Summary struct {

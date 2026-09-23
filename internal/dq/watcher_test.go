@@ -123,9 +123,9 @@ func TestOrderFindings(t *testing.T) {
 	envs := []checks.Envelope{
 		{Key: []byte("o1"), Value: validPayload("o1", "2026-09-23T10:00:00Z"), Partition: 0, Offset: 0},
 		{Key: []byte("o2"), Value: validPayload("o2", "2026-09-23T10:00:10Z"), Partition: 0, Offset: 1},
-		{Key: []byte("o1"), Value: validPayload("o1", "2026-09-23T10:00:10Z"), Partition: 0, Offset: 2}, // duplicate
-		{Key: []byte("o3"), Value: validPayload("o3", "2026-09-23T10:00:05Z"), Partition: 0, Offset: 3}, // out_of_order
-		{Key: []byte("bad"), Value: []byte("{broken"), Partition: 0, Offset: 4},                          // invalid_json
+		{Key: []byte("o1"), Value: validPayload("o1", "2026-09-23T10:00:10Z"), Partition: 0, Offset: 2},              // duplicate
+		{Key: []byte("o3"), Value: validPayload("o3", "2026-09-23T10:00:05Z"), Partition: 0, Offset: 3},              // out_of_order
+		{Key: []byte("bad"), Value: []byte("{broken"), Partition: 0, Offset: 4},                                      // invalid_json
 		{Key: []byte("o4"), Value: []byte(`{"order_id":"o4","amount":1,"currency":"USD"}`), Partition: 0, Offset: 5}, // field_missing (ts)
 	}
 	for _, e := range envs {
@@ -212,21 +212,23 @@ func TestProcessedCountMonotonic(t *testing.T) {
 		p := int32(i % 2)
 		w.Push(checks.Envelope{Value: validPayload("o", "2026-09-23T10:00:00Z"), Partition: p, Offset: int64(i)})
 		if i%10 == 9 {
-		for p := int32(0); p < 2; p++ {
-			cur := w.ProcessedCount()[p]
-			if cur < prev[p] {
-				t.Fatalf("partition %d watermark went backwards: %d -> %d", p, prev[p], cur)
+			for p := int32(0); p < 2; p++ {
+				cur := w.ProcessedCount()[p]
+				if cur < prev[p] {
+					t.Fatalf("partition %d watermark went backwards: %d -> %d", p, prev[p], cur)
+				}
+				prev[p] = cur
 			}
-			prev[p] = cur
-		}
 
 		}
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	if prev[0]+prev[1] != n {
-		t.Fatalf("total processed = %d, want %d", prev[0]+prev[1], n)
+	// watermark после Close: все Pushнутые envelope обработаны (wg.Wait)
+	final := w.ProcessedCount()
+	if final[0]+final[1] != n {
+		t.Fatalf("total processed = %d, want %d", final[0]+final[1], n)
 	}
 }
 
