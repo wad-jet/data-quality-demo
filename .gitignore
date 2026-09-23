@@ -2,5 +2,7 @@
 .opencode/
 
 # runtime artifacts
+bin/
 producer-ledger.jsonl
+ledger.jsonl
 findings.jsonl
