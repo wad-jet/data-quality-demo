@@ -71,6 +71,20 @@ make broker-down # docker compose down
 
 **DLQ topic `dq.orders.dlq`** — только schema-violations: `field_missing`, `type_drift`, `invalid_json` (оригинальный payload + header `dq.reason`). `duplicate`/`out_of_order`/`lag` — валидные сообщения: остаются в основном топике и фиксируются только findings.
 
+## Аудит (audit)
+
+Независимая проверка качества по готовым файлам (без брокера):
+
+    make build   # собирает и bin/audit
+    ./bin/audit -ledger ledger.jsonl -findings findings.jsonl -out audit-report.json
+
+- В stdout — таблица precision/recall по 6 дефектам, DLQ по причинам,
+  таймлайн, overall; в `audit-report.json` — структурированный отчёт.
+- Ожидаемо (дет-режим seed 42): recall = 100% по всем тегам;
+  precision = 100% для missing/typedrift/dup/invalidjson; ooo/lag —
+  precision < 100% (кросс-срабатывание «старого ts» — см. справку).
+- Форматы данных и формулы метрик: `manual_docs/reference/data-formats.md`.
+
 ## Ссылки
 
 - Spec: `docs/superpowers/specs/2026-09-23-data-quality-demo-design.md`
