@@ -52,6 +52,7 @@ broker-down:
 build:
 	go build -o bin/producer ./cmd/producer
 	go build -o bin/consumer ./cmd/consumer
+	go build -o bin/audit ./cmd/audit
 
 # Run all Go tests
 test:
