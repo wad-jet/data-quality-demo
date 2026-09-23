@@ -1,0 +1,25 @@
+targets:
+  - opencode
+
+dependencies:
+  skills:
+    - url: https://github.com/wad-jet/maestro
+      path: skills/maestro
+    - url: https://github.com/wad-jet/maestro
+      path: skills/maestro-setup
+    - url: https://github.com/wad-jet/maestro
+      path: skills/maestro-design
+    - url: https://github.com/wad-jet/maestro
+      path: skills/maestro-assistant
+    - url: https://github.com/wad-jet/maestro
+      path: skills/maestro-feedback-report
+    - url: https://github.com/wad-jet/maestro
+      path: skills/manual-docs
+    - url: https://github.com/obra/superpowers
+      path: skills
+  commands:
+    - url: https://github.com/wad-jet/maestro
+      path: commands
+  agents:
+    - url: https://github.com/wad-jet/maestro
+      path: agents

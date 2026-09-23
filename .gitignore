@@ -1,0 +1,6 @@
+.maestro/
+.opencode/
+
+# runtime artifacts
+producer-ledger.jsonl
+findings.jsonl

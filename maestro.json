@@ -1,0 +1,16 @@
+{
+  "trust": { "custodian": true, "sanitizer": true },
+  "confidential": {
+    "version": 1,
+    "paths": ["docs/confidential/**"],
+    "trusted": { "read": "allow", "write": "deny", "edit": "deny" }
+  },
+  "sanitizer_whitelist": {
+    "rules": { "env_secret": true, "data_field": true, "env_file": true, "db_credential": true, "ledger_entry": true, "private_key": true, "auth_header": true },
+    "by_agent": { "code-reviewer": [] },
+    "patterns": [],
+    "extra_fields": [],
+    "extra_uri_schemes": []
+  },
+  "communication": "plain"
+}
