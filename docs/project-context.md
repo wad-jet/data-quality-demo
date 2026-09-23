@@ -28,15 +28,20 @@
 
 ## 4. Архитектура
 
-Два независимых Go-сервиса, поток: **producer → RedPanda → consumer с
-проверками → findings (JSONL) + DLQ + агрегат с caught/total**.
+Три независимых Go-сервиса, поток: **producer → RedPanda → consumer →
+findings (JSONL) + DLQ + агрегат с caught/total**; фоновый DQ-инспектор
+(`internal/dq.Watcher`) прикреплен к обеим сторонам потока; audit — оффлайн.
 
 - `cmd/producer` — генерация order-событий, вживление дефектов по заданным
   процентам (missing/dup/typedrift/ooo/lag/invalidjson), запись ledger (JSONL,
-  ground truth), отправка в топик `dq.orders`.
-- `cmd/consumer` — чтение топика, прогон проверок (checks), DLQ
-  (`dq.orders.dlq`) для schema-violations, findings JSONL, агрегат в stdout
-  (caught/total по ledger).
+  ground truth; flush на строку), отправка в топик `dq.orders` + фоновый
+  DQ-тап в `producer-findings.jsonl`.
+- `cmd/consumer` — чтение топика, тап в фоновый DQ-воркер (`internal/dq`):
+  checks, DLQ (`dq.orders.dlq`) для schema-violations, findings JSONL, агрегат
+  в stdout (caught/total по ledger); «коммит только обработанное»
+  (franz-go marks-семантика, at-least-once).
+- `cmd/audit` — оффлайн-аудит: precision/recall по тегам, DLQ по причинам,
+  таймлайн (ledger + findings).
 - Топики создаются явно (1 партиция, без auto-create). Kafka-клиент — franz-go;
   точки изоляции: `internal/producer/emit.go` (запись), `internal/consumer` (чтение).
 
@@ -44,21 +49,25 @@ IMPORTANT: checks — чистая логика без сети (unit без б�
 RedPanda изолированы в emit.go и consumer; out_of_order — по порядку получения
 (1 партиция), `LastTS` монотонный.
 
-Дизайн-спека: `docs/superpowers/specs/2026-09-23-data-quality-demo-design.md`.
+Дизайн-спеки: `docs/superpowers/specs/2026-09-23-data-quality-demo-design.md`,
+продолжение — `docs/superpowers/specs/2026-09-23-background-dq-watcher-design.md`
+(фоновый DQ-инспектор, crash-гарантии).
 
 ## 5. Домены / модули
 
 | Пакет | Ответственность |
 |---|---|
-| `cmd/producer`, `cmd/consumer` | CLI-входы сервисов (флаги, slog, SIGINT) |
+| `cmd/producer`, `cmd/consumer`, `cmd/audit` | CLI-входы сервисов (флаги, slog, SIGINT) |
 | `internal/events` | схема события + строгий decode |
-| `internal/producer` | генератор (seeded), инжектор дефектов, ledger, kafka-write |
-| `internal/checks` | Check/State/Registry + 5 проверок (6 finding-типов) |
-| `internal/consumer` | wiring: read → checks → DLQ → report |
+| `internal/producer` | генератор (seeded), инжектор дефектов, ledger (flush на строку), kafka-write |
+| `internal/checks` | Check/State/Registry + 4 проверки (6 finding-типов), `IsSchemaViolation` |
+| `internal/dq` | фоновый DQ-инспектор: tap (ограниченная очередь) + один воркер (checks, findings, DLQ, агрегация); без kgo |
+| `internal/consumer` | wiring: read → DQ-тап → marks-коммит («только обработанное») → report |
 | `internal/report` | findings JSONL, агрегация, caught/total |
+| `internal/audit` | оффлайн-аудит: precision/recall по тегам, DLQ по причинам, таймлайн |
 
-Каталоги: `cmd/{producer,consumer}/`, `internal/{events,producer,checks,
-consumer,report}/`, `docker-compose.yml`. Отдельный audit-сервис — фаза 2.
+Каталоги: `cmd/{producer,consumer,audit}/`, `internal/{events,producer,checks,
+dq,consumer,report,audit}/`, `docker-compose.yml`.
 
 ## 6. Ограничения и допущения
 
