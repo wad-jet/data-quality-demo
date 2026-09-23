@@ -20,6 +20,6 @@ Spec: `docs/superpowers/specs/2026-09-23-data-quality-demo-design.md` (архи�
 Верификация: живой прогон `make demo` при запущенном Docker; в stdout consumer'а — caught/total 100% по 6 тегам; broker после прогона остановлен.
 
 ## Task 2: README.md
-Секции: Назначение (1 абзац) · Требования (Go 1.22+, Docker) · Quickstart (`make demo`) · Ручной запуск (команды producer/consumer с флагами) · Таблица 6 проверок (тег, что ловит) · Как читать отчёт (caught/total, DLQ topic, findings.jsonl, ledger) · Ссылка на spec.
+Секции: Назначение (1 абзац) · Требования (Go 1.26+, Docker) · Quickstart (`make demo`) · Ручной запуск (команды producer/consumer с флагами) · Таблица 6 проверок (тег, что ловит) · Как читать отчёт (caught/total, DLQ topic, findings.jsonl, ledger) · Ссылка на spec.
 
 Верификация: визуальная сверка с фактическими флагами CLI (cmd/producer/main.go, cmd/consumer/main.go).

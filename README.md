@@ -2,7 +2,7 @@
 
 ## Назначение
 
-Демо контроля качества стриминговых данных на живом потоке: Go-сервис `producer` генерирует order-события и вживает в них шесть типовых дефектов по заданным процентам, отправляя их в топик `dq.orders` через брокер RedPanda (Kafka) в Docker (single-node, порт 9092); Go-сервис `consumer` читает тот же поток и ловит дефекты шестью проверками, печатая в stdout отчёт — число findings по каждому типу и caught/total (поймано/всего) по каждому тегу дефекта из ledger producer'а.
+Демо контроля качества стриминговых данных на живом потоке: Go-сервис `producer` генерирует order-события и вживает в них шесть типовых дефектов по заданным процентам, отправляя их в топик `dq.orders` через брокер RedPanda (Kafka) в Docker (single-node, порт 9092); Go-сервис `consumer` читает тот же поток и ловит дефекты шестью проверками, печатая в stderr (через `slog.Info` с дефолтным логгером) строку-сводку — число findings по каждому типу и caught/total (поймано/всего) по каждому тегу дефекта из ledger producer'а.
 
 ## Требования
 
@@ -26,7 +26,7 @@ make demo
 
 Занимает ~10–15 с (DoD плана: < 60 с).
 
-Ожидаемый результат: в stdout consumer'а строка `Caught/total (vs ledger)` с caught/total = 100% по всем 6 тегам (`missing`, `dup`, `typedrift`, `ooo`, `lag`, `invalidjson`).
+Ожидаемый результат: в stderr consumer'а строка структурного лога `slog` (уровень INFO, `msg=summary`, сводка в поле `report`), где в `Caught/total (vs ledger)` caught/total = 100% по всем 6 тегам (`missing`, `dup`, `typedrift`, `ooo`, `lag`, `invalidjson`).
 
 ## Ручной запуск
 
@@ -44,7 +44,7 @@ make broker-down # docker compose down
 
 | Тег | Что ловит |
 |---|---|
-| `field_missing` | событие без одного из 4 обязательных полей или с null-значением (демо вживает: `amount` или `currency`) |
+| `field_missing` | событие без одного из 4 обязательных полей или с null-значением (демо вживает: `amount`) |
 | `type_drift` | сдвиг типов: `amount` — строка, либо `ts` не в RFC3339 |
 | `invalid_json` | битый payload — сообщение не является валидным JSON |
 | `duplicate` | сообщение с `order_id`, уже встреченным в потоке (in-memory set по `order_id`) |
@@ -53,13 +53,13 @@ make broker-down # docker compose down
 
 ## Как читать отчёт
 
-**stdout consumer'а** — итоговая сводка (формат из spec §6):
+**stderr consumer'а** — итоговая сводка: одна строка структурного лога `slog` (дефолтный логгер, уровень INFO, `msg=summary`), сводка целиком в значении поля `report` (формат из spec §6). Пример реального вывода (`make demo`):
 
 ```
-Findings: total=124 | field_missing=18 type_drift=14 duplicate=27 out_of_order=21 lag=43 invalid_json=1
-DLQ: 33 (dlq_errors=0)
-Caught/total (vs ledger): missing=18/19 dup=27/28 typedrift=14/15 ooo=21/22 lag=43/44 invalidjson=1/1
+2026-09-23 20:53:29 INFO summary report="Findings: total=374 | field_missing=42 type_drift=47 duplicate=46 out_of_order=155 lag=61 invalid_json=23\nDLQ: 112 (dlq_errors=0)\nCaught/total (vs ledger): missing=42/42 dup=46/46 typedrift=47/47 ooo=65/65 lag=58/58 invalidjson=23/23\n"
 ```
+
+(время в начале строки — время прогона; точные числа findings могут незначительно отличаться между прогонами — чувствителен к таймингу `out_of_order` — при стабильном caught/total = 100% по всем тегам)
 
 - `Findings: total=… | …` — сколько findings нашла каждая проверка.
 - `DLQ: … (dlq_errors=…)` — сколько сообщений ушло в DLQ и сколько ошибок отправки в DLQ.
