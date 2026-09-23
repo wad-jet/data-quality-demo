@@ -41,7 +41,7 @@ func TestRenderHuman(t *testing.T) {
 		}
 	}
 	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) != 7 {
+	if len(lines) != 6 {
 		t.Fatalf("expected 7 lines, got %d:\n%s", len(lines), out)
 	}
 }
@@ -72,6 +72,25 @@ func TestWriteJSON(t *testing.T) {
 	}
 	if strings.Contains(string(data), "ledger_entries") {
 		t.Fatalf("LedgerEntries must not be serialized (json:-)")
+	}
+}
+
+// TestWriteJSONRenameFailure ensures that if the rename step fails, the temporary file is cleaned up.
+func TestWriteJSONRenameFailure(t *testing.T) {
+	dir := t.TempDir()
+	// Create a directory that will be used as the target path for WriteJSON, causing rename to fail.
+	targetDir := filepath.Join(dir, "target")
+	if err := os.Mkdir(targetDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// Path is a directory, not a file.
+	if err := WriteJSON(sampleReport(), targetDir); err == nil {
+		t.Fatalf("expected error when renaming to a directory")
+	}
+	// The temporary file should have been removed.
+	tmpPath := targetDir + ".tmp"
+	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
+		t.Fatalf("temporary file %s should have been removed after rename failure", tmpPath)
 	}
 }
 

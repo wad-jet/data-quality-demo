@@ -20,7 +20,6 @@ func (r Report) RenderHuman() string {
 	fmt.Fprintf(&b, "%-10s %-16s %7s %8s %9s %10s %4s %10s\n",
 		"tag", "check", "total", "caught", "recall", "findings", "fp", "precision",
 	)
-	fmt.Fprintln(&b)
 	// Per‑tag rows
 	for _, m := range r.PerTag {
 		fmt.Fprintf(&b, "%-10s %-16s %7d %8d %8.1f%% %10d %4d %9.1f%%\n",
@@ -62,5 +61,11 @@ func WriteJSON(r Report, path string) error {
 	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	// Attempt atomic rename; if it fails, clean up the temporary file.
+	if err := os.Rename(tmp, path); err != nil {
+		// Best‑effort removal of the temporary file; ignore any removal error.
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
