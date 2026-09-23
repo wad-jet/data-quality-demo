@@ -81,8 +81,9 @@ make broker-down # docker compose down
 - В stdout — таблица precision/recall по 6 дефектам, DLQ по причинам,
   таймлайн, overall; в `audit-report.json` — структурированный отчёт.
 - Ожидаемо (дет-режим seed 42): recall = 100% по всем тегам;
-  precision = 100% для missing/typedrift/dup/invalidjson; ooo/lag —
-  precision < 100% (кросс-срабатывание «старого ts» — см. справку).
+  precision = 100% для missing/typedrift/dup/invalidjson;
+  ooo (и, в зависимости от тайминга, lag) — precision < 100%
+  (кросс-срабатывание «старого ts» — см. справку).
 - Форматы данных и формулы метрик: `manual_docs/reference/data-formats.md`.
 
 ## Ссылки

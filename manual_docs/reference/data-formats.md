@@ -56,6 +56,6 @@
 - **`invalid_json`:** `caught = min(findings, total)` (order_id пуст);
   при findings ≤ total precision ≡ 100% (следствие min-правила).
 - **Кросс-срабатывание ooo/lag:** «старый ts» срабатывает на обе
-  проверки, поэтому precision ooo/lag < 100% на дет-прогоне —
-  информативный результат, не баг.
+  проверки, поэтому precision ooo < 100% (и, в зависимости от
+  тайминга, lag) на дет-прогоне — информативный результат, не баг.
 - `first_ts`/`last_ts` — min/max `ts` по строкам ledger тега.
