@@ -18,7 +18,7 @@ func main() {
 		topic      = flag.String("topic", "dq.orders", "Topic to consume")
 		group      = flag.String("group", "dq-demo", "Consumer group")
 		dlqTopic   = flag.String("dlq-topic", "dq.orders.dlq", "DLQ topic")
-		findings   = flag.String("findings", "findings.jsonl", "Findings output path")
+		findings   = flag.String("findings", "out/findings.jsonl", "Findings output path")
 		stopN      = flag.Int64("stop", 0, "Stop after N messages (0 = off)")
 		idleStop   = flag.Duration("idle-stop", 0, "Stop after idle duration (0 = off)")
 		lagThresh  = flag.Duration("lag-threshold", 60*time.Second, "Lag threshold")

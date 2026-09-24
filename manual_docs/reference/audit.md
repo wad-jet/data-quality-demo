@@ -3,6 +3,9 @@
 CLI `bin/audit`: строит и рендерит отчёт о качестве потока.
 Дизайн: `docs/superpowers/specs/2026-09-24-audit-dlq-report-design.md`.
 
+По соглашению файлы лежат в `out/` (см. README):
+`out/ledger.jsonl`, `out/findings.jsonl`, `out/audit-report.json`.
+
 ## Режимы
 
 Два взаимоисключающих режима (одновременное указание — usage-ошибка, exit 1):

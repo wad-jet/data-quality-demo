@@ -17,8 +17,9 @@ demo:
 	trap 'echo "[demo] interrupted - shutting down broker..."; cleanup; trap - EXIT; exit 143' TERM; \
 	trap 'cleanup' EXIT; \
 	set -e; \
-	echo "[demo] resetting demo artifacts (rm -f ledger.jsonl findings.jsonl producer-findings.jsonl audit-report.json)..."; \
-	rm -f ledger.jsonl findings.jsonl producer-findings.jsonl audit-report.json; \
+	echo "[demo] resetting demo artifacts (rm -rf out)..."; \
+	rm -rf out; \
+	mkdir -p out; \
 	echo "[demo] starting broker (docker compose up -d)..."; \
 	docker compose up -d; \
 	echo "[demo] waiting for broker at $(BROKER_HOST):$(BROKER_PORT) (up to $(BROKER_TIMEOUT)s)..."; \
@@ -33,14 +34,14 @@ demo:
 	done; \
 	echo "[demo] broker is up."; \
 	$(MAKE) build; \
-	echo "[demo] running producer (-count 1000 -rate 200 -seed 42 -ledger ledger.jsonl)..."; \
-	./bin/producer -count 1000 -rate 200 -seed 42 -ledger ledger.jsonl; \
-	echo "[demo] running consumer (-stop 1000 -ledger ledger.jsonl -findings findings.jsonl)..."; \
-	./bin/consumer -stop 1000 -ledger ledger.jsonl -findings findings.jsonl; \
-	echo "[demo] running audit (-dlq-topic dq.orders.dlq -out audit-report.json)..."; \
-	./bin/audit -ledger ledger.jsonl -findings findings.jsonl -dlq-topic dq.orders.dlq -out audit-report.json; \
+	echo "[demo] running producer (-count 1000 -rate 200 -seed 42 -ledger out/ledger.jsonl)..."; \
+	./bin/producer -count 1000 -rate 200 -seed 42 -ledger out/ledger.jsonl; \
+	echo "[demo] running consumer (-stop 1000 -ledger out/ledger.jsonl -findings out/findings.jsonl)..."; \
+	./bin/consumer -stop 1000 -ledger out/ledger.jsonl -findings out/findings.jsonl; \
+	echo "[demo] running audit (-dlq-topic dq.orders.dlq -out out/audit-report.json)..."; \
+	./bin/audit -ledger out/ledger.jsonl -findings out/findings.jsonl -dlq-topic dq.orders.dlq -out out/audit-report.json; \
 	echo ""; \
-	echo "[demo] DONE. Report: $(CURDIR)/audit-report.json; findings: $(CURDIR)/findings.jsonl"
+	echo "[demo] DONE. Report: $(CURDIR)/out/audit-report.json; findings: $(CURDIR)/out/findings.jsonl"
 
 # Broker only: start
 broker-up:
@@ -62,5 +63,5 @@ test:
 
 # Remove build artifacts and demo outputs
 clean:
-	rm -rf bin
-	rm -f ledger.jsonl producer-ledger.jsonl findings.jsonl producer-findings.jsonl audit-report.json audit-report.md audit-report.html *.log
+	rm -rf bin out
+	rm -f *.log

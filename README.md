@@ -24,17 +24,19 @@ make demo
 1. `docker compose up -d` — поднимает брокер RedPanda (localhost:9092).
 2. Ожидание готовности брокера (`nc -z localhost 9092`, до 60 с).
 3. `make build` — сборка `bin/producer`, `bin/consumer` и `bin/audit`.
-4. `./bin/producer -count 1000 -rate 200 -seed 42 -ledger ledger.jsonl` — 1000 событий, детерминированная последовательность (seed 42), скорость 200 msg/с.
-5. `./bin/consumer -stop 1000 -ledger ledger.jsonl -findings findings.jsonl` — читает 1000 сообщений, печатает отчёт.
+4. `./bin/producer -count 1000 -rate 200 -seed 42 -ledger out/ledger.jsonl` — 1000 событий, детерминированная последовательность (seed 42), скорость 200 msg/с.
+5. `./bin/consumer -stop 1000 -ledger out/ledger.jsonl -findings out/findings.jsonl` — читает 1000 сообщений, печатает отчёт.
 6. `docker compose down` — broker останавливается (через trap — в т.ч. по Ctrl-C).
+
+Все производные файлы (ledger, findings, audit-отчёты) складываются в папку `out/` (создаётся автоматически, в gitignore); `make clean` удаляет её целиком.
 
 ## Ручной запуск
 
 ```
 make broker-up   # docker compose up -d
 make build       # go build -o bin/producer ./cmd/producer; go build -o bin/consumer ./cmd/consumer; go build -o bin/audit ./cmd/audit
-./bin/producer -count 1000 -rate 200 -seed 42 -ledger ledger.jsonl
-./bin/consumer -stop 1000 -ledger ledger.jsonl -findings findings.jsonl
+./bin/producer -count 1000 -rate 200 -seed 42 -ledger out/ledger.jsonl
+./bin/consumer -stop 1000 -ledger out/ledger.jsonl -findings out/findings.jsonl
 make broker-down # docker compose down
 ```
 
@@ -65,9 +67,9 @@ make broker-down # docker compose down
 - `DLQ: … (dlq_errors=…)` — сколько сообщений ушло в DLQ и сколько ошибок отправки в DLQ.
 - `Caught/total (vs ledger): …` — печатается только при передаче `-ledger`. Теги — теги дефектов из ledger producer'а; caught = количество записей ledger с этим тегом, для которых есть finding соответствующего типа. Сопоставление: `missing→field_missing`, `dup→duplicate`, `typedrift→type_drift`, `ooo→out_of_order`, `lag→lag`, `invalidjson→invalid_json`; по `order_id` (findings при сопоставлении дедуплицируются по `order_id`), а для `invalid_json` — по количеству, т.к. у битого payload `order_id` отсутствует.
 
-**`findings.jsonl`** — одна JSON-строка на finding (append по ходу работы); поля: `check`, `order_id` (отсутствует, если не удалось извлечь), `offset`, `detail`, `ts`.
+**`findings.jsonl`** (дефолт `out/findings.jsonl`) — одна JSON-строка на finding (append по ходу работы); поля: `check`, `order_id` (отсутствует, если не удалось извлечь), `offset`, `detail`, `ts`.
 
-**Ledger** (журнал отправленных сообщений) — файл, указанный в `-ledger` у producer'а (дефолт `producer-ledger.jsonl`; в `make demo` передаётся `ledger.jsonl`): одна строка на отправленное сообщение (включая dup-копии) — `{"seq":1,"order_id":"o-000001","ts":"2026-09-23T14:00:00Z","defect":"missing"}`, `defect` ∈ `missing | dup | typedrift | ooo | lag | invalidjson | none`. Это ground truth (эталон для сравнения) для caught/total.
+**Ledger** (журнал отправленных сообщений) — файл, указанный в `-ledger` у producer'а (дефолт `out/producer-ledger.jsonl`; в `make demo` передаётся `out/ledger.jsonl`): одна строка на отправленное сообщение (включая dup-копии) — `{"seq":1,"order_id":"o-000001","ts":"2026-09-23T14:00:00Z","defect":"missing"}`, `defect` ∈ `missing | dup | typedrift | ooo | lag | invalidjson | none`. Это ground truth (эталон для сравнения) для caught/total.
 
 **DLQ (dead-letter queue, отдельный топик для сообщений, не прошедших проверку схемы) topic `dq.orders.dlq`** — только schema-violations: `field_missing`, `type_drift`, `invalid_json` (оригинальный payload + header `dq.reason`). `duplicate`/`out_of_order`/`lag` — валидные сообщения: остаются в основном топике и фиксируются только findings.
 
@@ -78,17 +80,17 @@ make broker-down # docker compose down
 
     make build   # собирает и bin/audit
     # Офлайн-режим (без брокера):
-    ./bin/audit -ledger ledger.jsonl -findings findings.jsonl -out audit-report.json
+    ./bin/audit -ledger out/ledger.jsonl -findings out/findings.jsonl -out out/audit-report.json
     # Онлайн-режим (нужен брокер): дополнительно читает DLQ-топик и сверяет:
-    ./bin/audit -ledger ledger.jsonl -findings findings.jsonl -dlq-topic dq.orders.dlq -out audit-report.json
+    ./bin/audit -ledger out/ledger.jsonl -findings out/findings.jsonl -dlq-topic dq.orders.dlq -out out/audit-report.json
     # Рендер готового отчёта в md/html:
-    ./bin/audit -from audit-report.json -format md -out audit-report.md
-    ./bin/audit -from audit-report.json -format html -out audit-report.html
+    ./bin/audit -from out/audit-report.json -format md -out out/audit-report.md
+    ./bin/audit -from out/audit-report.json -format html -out out/audit-report.html
 
 - В stdout — таблица precision (доля правильных найденных дефектов) / recall (доля найденных дефектов от всех) по 6 дефектам, DLQ по причинам,
   таймлайн, overall; в `audit-report.json` — структурированный отчёт.
 - **`make demo` сам прогоняет audit** (до останова брокера) с
-  `-dlq-topic dq.orders.dlq` — поэтому `audit-report.json` после демо содержит
+  `-dlq-topic dq.orders.dlq` — поэтому `out/audit-report.json` после демо содержит
   реальные счётчики DLQ.
 - **Сверка DLQ:** офлайн-секция `dlq` считается из findings («ожидаемое»),
   `dlq_topic` (при `-dlq-topic`) читается из брокера («факт»). Расхождение
@@ -115,7 +117,7 @@ make broker-down # docker compose down
 - **consumer** — цикл приёма лишь «тэпает» сообщения — передаёт их в очередь без обработки; проверки,
   findings и DLQ выполняются фоном, не задерживая поллинг.
 - **producer** — самоконтроль исходящего потока (те же 6 проверок): findings —
-  в `producer-findings.jsonl` (флаг `-findings`, дефолт `producer-findings.jsonl`);
+  в `out/producer-findings.jsonl` (флаг `-findings`, дефолт `out/producer-findings.jsonl`);
   `-lag-threshold` — порог проверки lag (дефолт `60s`). Итоговая строка
   producer'а содержит поле `dq` — число findings по каждому типу проверки.
   caught/total на стороне producer'а не считается (ground truth — ledger).

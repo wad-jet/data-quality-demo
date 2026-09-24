@@ -3,6 +3,9 @@
 Форматы файлов, которые обменивают producer, consumer и audit.
 Спецификация поведения: `docs/superpowers/specs/2026-09-23-audit-tool-design.md`.
 
+Все файлы генерируются в папке `out/` (создаётся автоматически, в gitignore;
+`make clean` удаляет её) — имена ниже приведены без префикса папки.
+
 ## ledger.jsonl (producer — ground truth)
 
 Одна JSON-строка на отправленное событие (`producer.LedgerEntry`):
