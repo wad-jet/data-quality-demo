@@ -236,9 +236,26 @@ func RenderHTML(r Report) (string, error) {
 		b.WriteString("</ul>\n")
 	}
 
-	b.WriteString("<h2>Что проверяли</h2>\n<p>")
-	fmt.Fprintf(&b, "Producer отправил %d событий, из них с заложенными дефектами: %d. Инспектор нашёл %d записей: %d — реальные дефекты, %d — ложные срабатывания.</p>\n",
-		r.LedgerEntries, r.Overall.TotalDefects, r.Overall.Findings, r.Overall.Caught, r.Overall.FalsePos)
+	b.WriteString("<h2>Что проверяли</h2>\n")
+	k := r.Overall.Findings - r.Overall.FalsePos - r.Overall.Caught
+	if r.Overall.Findings == 0 {
+		fmt.Fprintf(&b, "<p>Producer отправил %d событий, из них с заложенными дефектами: %d. Записей инспектора (consumer — читает каждое событие и фиксирует нарушения) нет.</p>\n",
+			r.LedgerEntries, r.Overall.TotalDefects)
+	} else {
+		caughtNote := "(найдены все)"
+		if r.Overall.Caught < r.Overall.TotalDefects {
+			caughtNote = fmt.Sprintf("(найдено %d из %d)", r.Overall.Caught, r.Overall.TotalDefects)
+		}
+		fmt.Fprintf(&b, "<p>Producer отправил %d событий, из них с заложенными дефектами: %d. Инспектор (consumer — читает каждое событие и фиксирует нарушения) — записей всего %d:</p>\n<ul>\n",
+			r.LedgerEntries, r.Overall.TotalDefects, r.Overall.Findings)
+		fmt.Fprintf(&b, "<li>%d — заложенные дефекты %s,</li>\n", r.Overall.Caught, caughtNote)
+		if k > 0 {
+			fmt.Fprintf(&b, "<li>%d — дополнительные записи на те же дефекты (повторные отправки),</li>\n", k)
+		}
+		fmt.Fprintf(&b, "<li>%d — ложные срабатывания (не подтвердились при сверке с ledger).</li>\n</ul>\n", r.Overall.FalsePos)
+		fmt.Fprintf(&b, "<p>Подтвердились записи: %d из %d — это и есть Precision.</p>\n",
+			r.Overall.Findings-r.Overall.FalsePos, r.Overall.Findings)
+	}
 
 	b.WriteString("<h2>Метрики простыми словами</h2>\n<table>\n")
 	b.WriteString("<tr><th>Метрика</th><th>Значение</th><th>Что это значит</th></tr>\n")
@@ -249,7 +266,7 @@ func RenderHTML(r Report) (string, error) {
 	b.WriteString("</table>\n")
 
 	b.WriteString("<h2>Дефекты по видам</h2>\n<table>\n")
-	b.WriteString("<tr><th>Дефект</th><th>Что это</th><th class=\"num\">Заложено</th><th class=\"num\">Найдено</th><th class=\"num\">Recall</th><th class=\"num\">Записей</th><th class=\"num\">Ложных</th><th class=\"num\">Precision</th></tr>\n")
+	b.WriteString("<tr><th>Дефект</th><th>Что это</th><th class=\"num\">Заложено</th><th class=\"num\">Найдено из заложенных</th><th class=\"num\">Recall</th><th class=\"num\">Всего записей</th><th class=\"num\">Ложных</th><th class=\"num\">Precision</th></tr>\n")
 	for _, tm := range r.PerTag {
 		recall, prec := "—", "—"
 		recallCls, precCls := "", ""
@@ -273,27 +290,56 @@ func RenderHTML(r Report) (string, error) {
 	b.WriteString("</table>\n")
 	for _, tm := range r.PerTag {
 		if (tm.Tag == "ooo" || tm.Tag == "lag") && tm.FalsePos > 0 {
-			b.WriteString("<p>«Старое» событие (лаг) выглядит и как «не по порядку» — одна причина, две записи; это ожидаемое поведение демо, а не ошибка.</p>\n")
+			b.WriteString("<p>Событие с «старой» отметкой времени (lag) приходит и не по порядку — поэтому инспектор фиксирует его дважды: как lag и как ooo. Запись ooo не совпадает ни с одним заложенным ooo-дефектом и считается для ooo «ложной», хотя порядок действительно был нарушен. Это ожидаемое поведение демо, а не ошибка детектора.</p>\n")
 			break
 		}
 	}
+	b.WriteString("<p><strong>Как читать колонки:</strong></p>\n<ul>\n")
+	b.WriteString("<li><strong>Заложено</strong> — сколько дефектов этого вида producer вживил намеренно (записи ledger).</li>\n")
+	b.WriteString("<li><strong>Найдено из заложенных</strong> — сколько из них инспектор нашёл (Заложено = Найдено → Recall 100%).</li>\n")
+	b.WriteString("<li><strong>Всего записей</strong> — все записи инспектора этого вида. Запись — на сообщение, а «заложено/найдено» — на дефект: один дефект может дать несколько записей (повторная отправка сообщения).</li>\n")
+	b.WriteString("<li><strong>Ложных</strong> — записи, не подтвердившиеся при сверке с ledger.</li>\n</ul>\n")
 
-	b.WriteString("<h2>DLQ — очередь проблемных сообщений</h2>\n<p>")
-	fmt.Fprintf(&b, "Должно быть: %d (по находкам инспектора, offline)<br>\n", r.DLQ.Count)
+	b.WriteString("<h2>DLQ (dead-letter queue) — очередь проблемных сообщений</h2>\n<p>")
+	if r.DLQ.Count > 0 {
+		var parts []string
+		for _, tag := range tagOrder {
+			check := tagToCheck[tag]
+			if checks.IsSchemaViolation(check) {
+				if n := r.DLQ.ByReason[check]; n > 0 {
+					parts = append(parts, fmt.Sprintf("%d (%s)", n, tag))
+				}
+			}
+		}
+		if len(parts) > 0 {
+			fmt.Fprintf(&b, "Должно быть: %d = %s (по находкам инспектора, без обращения к брокеру)<br>\n",
+				r.DLQ.Count, strings.Join(parts, " + "))
+		} else {
+			fmt.Fprintf(&b, "Должно быть: %d (по находкам инспектора, без обращения к брокеру)<br>\n", r.DLQ.Count)
+		}
+	} else {
+		fmt.Fprintf(&b, "Должно быть: %d (по находкам инспектора, без обращения к брокеру)<br>\n", r.DLQ.Count)
+	}
 	if r.DLQTopic != nil {
 		fmt.Fprintf(&b, "Фактически: %d (прочитано из брокера)<br>\n", r.DLQTopic.Count)
 		if m := CheckDLQTopic(r.DLQ, *r.DLQTopic); m == "" {
-			b.WriteString("<span class=\"metric-ok\">Статус: совпадает</span>")
+			b.WriteString("<span class=\"metric-ok\">Статус: совпадает</span><br>\n")
 		} else {
-			fmt.Fprintf(&b, "<span class=\"metric-bad mismatch\">Статус: РАСХОЖДЕНИЕ — %s</span>", strings.TrimPrefix(m, "DLQ-сверка: "))
+			fmt.Fprintf(&b, "<span class=\"metric-bad mismatch\">Статус: РАСХОЖДЕНИЕ — %s</span><br>\n", strings.TrimPrefix(m, "DLQ-сверка: "))
 		}
 	} else {
-		b.WriteString("Фактически: не считалось (требуется запущенный брокер и флаг <code>-dlq-topic</code>)")
+		b.WriteString("Фактически: не считалось (требуется запущенный брокер и флаг <code>-dlq-topic</code>)<br>\n")
 	}
+	b.WriteString("В DLQ попадают только нарушения схемы (missing, typedrift, invalidjson); dup, ooo и lag — валидные сообщения, остаются в основном топике и фиксируются только записями инспектора.")
 	b.WriteString("</p>\n")
 
 	if len(r.Timeline) > 0 {
 		b.WriteString("<h2>Таймлайн</h2>\n")
+		total := 0
+		for _, bk := range r.Timeline {
+			total += bk.Count
+		}
+		fmt.Fprintf(&b, "<p>Распределение записей инспектора по времени события — отметке в самом событии, а не моменту получения (для некорректного JSON отметка неизвестна — берётся момент получения). Всего записей: %d — это все записи из раздела «Что проверяли».</p>\n", total)
 		clusters := TimelineClusters(r.Timeline)
 		maxSum := 0
 		for _, c := range clusters {
@@ -303,7 +349,7 @@ func RenderHTML(r Report) (string, error) {
 		}
 		for i, c := range clusters {
 			if i > 0 {
-				fmt.Fprintf(&b, "<p class=\"tl-gap\">разрыв %dс — как правило, дефект «лаг»: события со «старой» отметкой времени</p>\n", c.StartS-clusters[i-1].EndS)
+				fmt.Fprintf(&b, "<p class=\"tl-gap\">разрыв %dс — событий с таким временем события не было: так проявляется дефект «лаг» — события отправляются сейчас, но несут «прошлую» отметку времени, и между ними и свежими событиями образуется разрыв</p>\n", c.StartS-clusters[i-1].EndS)
 			}
 			width := 1
 			if maxSum > 0 {
@@ -320,8 +366,8 @@ func RenderHTML(r Report) (string, error) {
 	b.WriteString("<h2>Как проверять отчёт за 10 секунд</h2>\n<ol>\n")
 	b.WriteString("<li>Recall = 100% по всем видам? — значит, ни один заложенный дефект не просочился.</li>\n")
 	b.WriteString("<li>DLQ: «совпадает»? — значит, в очереди проблемных сообщений ничего не потеряно.</li>\n")
-	b.WriteString("<li>Precision ниже 100% у ooo/lag — это ожидаемо (двойные срабатывания); у остальных видов — 100%.</li>\n")
-	b.WriteString("<li>Вердикт в шапке сводит всё в одну строку.</li>\n</ol>\n")
+	b.WriteString("<li>Precision = 100% у всех видов, кроме ooo (и иногда lag): у них ниже 100% — ожидаемо: «старое» событие фиксируется и как lag, и как ooo, и запись ooo не совпадает с заложенными ooo-дефектами (см. пометку после таблицы). Ниже 100% у любого другого вида — повод разбираться.</li>\n")
+	b.WriteString("<li>Сошлись пункты 1–3 и в отчёте нет предупреждений (warnings о неизвестных проверках/дефектах) — в шапке будет «проблем не обнаружено»; иначе шапка назовёт причину.</li>\n</ol>\n")
 
 	fmt.Fprintf(&b, "<hr><p><small>Сгенерировано: %s · Данные: %s, %s<br>Машиночитаемая версия: <code>audit-report.json</code>; формат для специалистов: <code>-format text</code></small></p>\n",
 		r.GeneratedAt.UTC().Format("2006-01-02 15:04 (UTC)"), r.Inputs.Ledger, r.Inputs.Findings)

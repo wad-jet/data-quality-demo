@@ -222,23 +222,39 @@ func TestRenderMarkdownTimeline(t *testing.T) {
 }
 
 func TestRenderHTML(t *testing.T) {
-	html, err := RenderHTML(sampleReportFull()) // problems: dup recall + warning
+	html, err := RenderHTML(sampleReportFull())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	for _, m := range []string{
-		"<h1>Отчёт о качестве данных (audit)</h1>",
+		`<h1>Отчёт о качестве данных (audit)</h1>`,
 		`class="verdict-bad"`,
 		"<h2>Что проверяли</h2>",
-		"<h2>Метрики простыми словами</h2>",
+		"Инспектор (consumer — читает каждое событие и фиксирует нарушения) — записей всего 4:",
+		"<li>2 — заложенные дефекты (найдено 2 из 3),</li>",
+		"<li>1 — дополнительные записи на те же дефекты (повторные отправки),</li>",
+		"<li>1 — ложные срабатывания (не подтвердились при сверке с ledger).</li>",
+		"Подтвердились записи: 3 из 4 — это и есть Precision.",
 		"<h2>Дефекты по видам</h2>",
-		"заказ без обязательного поля",
-		`class="num metric-bad"`,  // dup: Caught 1 < Total 2
-		`class="num metric-ok"`,   // missing: recall 100%
-		`class="num metric-warn"`, // dup: precision 50%
-		"<h2>DLQ — очередь проблемных сообщений</h2>",
+		`<th class="num">Найдено из заложенных</th>`,
+		`<th class="num">Всего записей</th>`,
+		"заказ без обязательного поля (например, суммы) — корректно обработать его нельзя",
+		`class="num metric-bad"`,
+		`class="num metric-ok"`,
+		`class="num metric-warn"`,
+		"<p>Событие с «старой» отметкой времени (lag) приходит и не по порядку",
+		"<p><strong>Как читать колонки:</strong></p>",
+		"<li><strong>Заложено</strong> — сколько дефектов этого вида producer вживил намеренно (записи ledger).</li>",
+		"<h2>DLQ (dead-letter queue) — очередь проблемных сообщений</h2>",
+		"Должно быть: 1 = 1 (missing) (по находкам инспектора, без обращения к брокеру)",
 		"Фактически: не считалось",
+		"В DLQ попадают только нарушения схемы (missing, typedrift, invalidjson)",
+		"<h2>Таймлайн</h2>",
+		"а не моменту получения",
+		"Всего записей: 4 — это все записи из раздела «Что проверяли».",
 		"Как проверять отчёт за 10 секунд",
+		"кроме ooo (и иногда lag)",
+		"и в отчёте нет предупреждений",
 	} {
 		if !strings.Contains(html, m) {
 			t.Fatalf("HTML missing %q", m)
@@ -262,6 +278,9 @@ func TestRenderHTMLDLQTopic(t *testing.T) {
 		!strings.Contains(mism, `class="metric-bad mismatch"`) {
 		t.Fatalf("mismatch: %s", mism)
 	}
+	if !strings.Contains(match, "В DLQ попадают только нарушения схемы") {
+		t.Fatalf("dlq sentence: %s", match)
+	}
 }
 
 func TestRenderHTMLTimeline(t *testing.T) {
@@ -273,8 +292,11 @@ func TestRenderHTMLTimeline(t *testing.T) {
 	}
 	if !strings.Contains(html, "<h2>Таймлайн</h2>") ||
 		!strings.Contains(html, `class="tl-bar"`) ||
-		!strings.Contains(html, "разрыв 100с") {
+		!strings.Contains(html, "разрыв 100с — событий с таким временем события не было") {
 		t.Fatalf("timeline: %s", html)
+	}
+	if !strings.Contains(html, "Всего записей: 8 — это все записи из раздела «Что проверяли».") {
+		t.Fatalf("timeline total: %s", html)
 	}
 	if !strings.Contains(html, `style="width: 60%"`) || !strings.Contains(html, `style="width: 100%"`) {
 		t.Fatalf("bar widths (60%%, 100%%) missing: %s", html)
