@@ -216,3 +216,9 @@ Producer отправил {LedgerEntries} событий, из них с зал�
   «Как проверять отчёт за 10 секунд» (п.3 «кроме ooo»).
 - README.md «Аудит» + `manual_docs/reference/audit.md` «Форматы отчёта» —
   обновить перечисление секций/колонок под новые тексты.
+
+<!-- maestro:sanitize
+status: CLEAN
+date: 2026-09-25
+hash: c05e787658cffeef5ad5dcc12fb8b95d96957ae071860ef54478bfd0ea6b52fa
+-->
