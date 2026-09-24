@@ -98,7 +98,7 @@ func TestRenderMarkdown(t *testing.T) {
 		"| Recall | 2/3 (66.7%) |",
 		"| Precision | 2/3 (66.7%) |",
 		"## Дефекты по видам",
-		"| missing | заказ без обязательного поля |",
+		"| missing | заказ без обязательного поля (например, суммы) — корректно обработать его нельзя |",
 		"## DLQ — очередь проблемных сообщений",
 		"Должно быть: 1 (по находкам инспектора, offline)",
 		"Фактически: не считалось (требуется запущенный брокер и флаг `-dlq-topic`)",
@@ -251,7 +251,7 @@ func TestRenderMarkdownEmptyReport(t *testing.T) {
 		t.Fatalf("no timeline section: %s", md)
 	}
 	// тег с Total==0 — recall «—», а не 0.0%
-	if !strings.Contains(md, "| missing | заказ без обязательного поля | 0 | 0 | — | 0 | 0 | — |") {
+	if !strings.Contains(md, "| missing | заказ без обязательного поля (например, суммы) — корректно обработать его нельзя | 0 | 0 | — | 0 | 0 | — |") {
 		t.Fatalf("Total==0 row must show «—»: %s", md)
 	}
 }

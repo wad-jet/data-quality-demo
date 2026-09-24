@@ -131,12 +131,20 @@ func TestPct(t *testing.T) {
 }
 
 func TestTagDescription(t *testing.T) {
-	for _, tag := range []string{"missing", "dup", "typedrift", "ooo", "lag", "invalidjson"} {
-		if TagDescription(tag) == "" || TagDescription(tag) == tag {
-			t.Fatalf("tag %s: empty or passthrough", tag)
+	cases := map[string]string{
+		"missing":     "заказ без обязательного поля (например, суммы) — корректно обработать его нельзя",
+		"dup":         "повторная отправка одного заказа — без защиты от дублей заказ может быть обработан дважды",
+		"typedrift":   "поле сменило тип (число стало текстом и т.п.) — потребитель, ожидающий число, упадёт или молча посчитает неверно",
+		"ooo":         "события пришли не по порядку (событие с более поздней отметкой времени приходит раньше события с более ранней) — состояние заказа соберётся неверно",
+		"lag":         "«старое» событие: отметка времени в прошлом — обрабатывается «задним числом» и может перезаписать уже актуальное состояние",
+		"invalidjson": "некорректный JSON — сообщение не удаётся прочитать",
+	}
+	for tag, want := range cases {
+		if got := TagDescription(tag); got != want {
+			t.Errorf("TagDescription(%q) = %q, want %q", tag, got, want)
 		}
 	}
 	if got := TagDescription("unknown_tag"); got != "unknown_tag" {
-		t.Fatalf("unknown: %q", got)
+		t.Errorf("unknown tag passthrough: got %q, want %q", got, "unknown_tag")
 	}
 }
