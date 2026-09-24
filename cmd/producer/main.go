@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"strings"
 	"dqdemo/internal/checks"
 	"dqdemo/internal/dq"
 	"dqdemo/internal/report"
+	"fmt"
+	"strings"
 
 	"context"
 	"flag"
@@ -32,8 +32,8 @@ func main() {
 		errInvalid   = flag.Float64("err-invalidjson", 0.02, "Error rate invalid JSON")
 		seed         = flag.Int64("seed", 0, "Random seed (0 = time.Now)")
 		ledgerPath   = flag.String("ledger", "producer-ledger.jsonl", "Ledger output path")
-	findingsPath = flag.String("findings", "producer-findings.jsonl", "DQ findings output path")
-	lagThreshold = flag.Duration("lag-threshold", 60*time.Second, "Lag check threshold (producer side)")
+		findingsPath = flag.String("findings", "producer-findings.jsonl", "DQ findings output path")
+		lagThreshold = flag.Duration("lag-threshold", 60*time.Second, "Lag check threshold (producer side)")
 	)
 	flag.Parse()
 
@@ -98,13 +98,13 @@ func main() {
 			break
 		case <-ticker.C:
 			ev := gen.Next()
-if err := emit.Send(ctx, []byte(ev.OrderID), ev.Payload); err != nil {
-			// ignore error – failures counted via emitter.Failures()
-		}
-		watcher.Push(checks.Envelope{Key: []byte(ev.OrderID), Value: ev.Payload, Partition: 0, Offset: 0})
-		if err := ledger.Append(producer.LedgerEntry{OrderID: ev.OrderID, Ts: ev.Ts, Defect: ev.Defect}); err != nil {
-			slog.Error("ledger append", "err", err)
-		}
+			if err := emit.Send(ctx, []byte(ev.OrderID), ev.Payload); err != nil {
+				// ignore error – failures counted via emitter.Failures()
+			}
+			watcher.Push(checks.Envelope{Key: []byte(ev.OrderID), Value: ev.Payload, Partition: 0, Offset: 0})
+			if err := ledger.Append(producer.LedgerEntry{OrderID: ev.OrderID, Ts: ev.Ts, Defect: ev.Defect}); err != nil {
+				slog.Error("ledger append", "err", err)
+			}
 
 			sent++
 			if ev.Defect != producer.DefectNone {
