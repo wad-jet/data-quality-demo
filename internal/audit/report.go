@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -100,6 +101,9 @@ func (r Report) RenderHuman() string {
 func WriteJSON(r Report, path string) error {
 	data, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	tmp := path + ".tmp"

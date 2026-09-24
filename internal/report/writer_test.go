@@ -59,3 +59,17 @@ func TestFindingsWriterAppendsValidJSONLines(t *testing.T) {
 		}
 	}
 }
+
+func TestFindingsWriterCreatesParentDirs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out", "findings.jsonl")
+	w, err := NewFindingsWriter(path)
+	if err != nil {
+		t.Fatalf("NewFindingsWriter with missing parent dir: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("findings file not created: %v", err)
+	}
+}

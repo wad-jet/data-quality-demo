@@ -99,3 +99,13 @@ func TestWriteJSONError(t *testing.T) {
 		t.Fatalf("expected error for bad path")
 	}
 }
+
+func TestWriteJSONCreatesParentDirs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out", "audit-report.json")
+	if err := WriteJSON(sampleReport(), path); err != nil {
+		t.Fatalf("WriteJSON with missing parent dir: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("report file not created: %v", err)
+	}
+}

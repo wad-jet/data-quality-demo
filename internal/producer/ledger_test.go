@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -82,5 +83,19 @@ func TestAppendFlushesPerLine(t *testing.T) {
 	}
 	if !strings.Contains(string(data), `"order_id":"o1"`) {
 		t.Fatalf("line not flushed before Close: %q", string(data))
+	}
+}
+
+func TestLedgerCreatesParentDirs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out", "nested", "ledger.jsonl")
+	l, err := NewLedger(path)
+	if err != nil {
+		t.Fatalf("NewLedger with missing parent dirs: %v", err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("ledger file not created: %v", err)
 	}
 }
