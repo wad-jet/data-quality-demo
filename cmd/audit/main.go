@@ -33,7 +33,7 @@ func runAudit(args []string, stdout, stderr io.Writer) int {
 	if bootstrapDefault == "" {
 		bootstrapDefault = "localhost:9092"
 	}
-	bootstrap := fs.String("bootstrap", bootstrapDefault, "Kafka bootstrap server (optional, build mode only)")
+	bootstrap := fs.String("bootstrap", bootstrapDefault, "Kafka bootstrap server (build mode; defaults to $DQ_BOOTSTRAP or localhost:9092)")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}

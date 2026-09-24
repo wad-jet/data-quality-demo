@@ -75,12 +75,14 @@ func ConsumeDLQ(ctx context.Context, bootstrap, topic string) (DLQTopic, []strin
 	metaReq := kmsg.NewPtrMetadataRequest()
 	topicPtr := topic
 	metaReq.Topics = []kmsg.MetadataRequestTopic{{Topic: &topicPtr}}
+	// Errors are returned without an "audit: dlq:" prefix — the caller
+	// (cmd/audit) adds that single prefix before printing to stderr.
 	metaResp, err := metaReq.RequestWith(ctx, client)
 	if err != nil {
-		return DLQTopic{}, nil, fmt.Errorf("audit: dlq: %w", err)
+		return DLQTopic{}, nil, err
 	}
 	if len(metaResp.Topics) == 0 {
-		return DLQTopic{}, nil, fmt.Errorf("audit: dlq: metadata empty response for %s", topic)
+		return DLQTopic{}, nil, fmt.Errorf("metadata empty response for %s", topic)
 	}
 	// Verify no error code (fast-fail on UNKNOWN_TOPIC_OR_PARTITION etc.).
 	for _, t := range metaResp.Topics {
@@ -88,7 +90,7 @@ func ConsumeDLQ(ctx context.Context, bootstrap, topic string) (DLQTopic, []strin
 			if perr := kerr.ErrorForCode(t.ErrorCode); perr != nil {
 				return DLQTopic{}, nil, perr
 			}
-			return DLQTopic{}, nil, fmt.Errorf("audit: dlq: metadata error code %d", t.ErrorCode)
+			return DLQTopic{}, nil, fmt.Errorf("metadata error code %d", t.ErrorCode)
 		}
 	}
 
@@ -101,6 +103,7 @@ func ConsumeDLQ(ctx context.Context, bootstrap, topic string) (DLQTopic, []strin
 	// FENCED_LEADER_EPOCH.
 	result := DLQTopic{Count: 0, ByReason: map[string]int{}}
 	warnings := []string{}
+	missingHeader := 0
 	start := time.Now()
 	for {
 		if time.Since(start) >= dlqReadTimeout {
@@ -128,13 +131,16 @@ func ConsumeDLQ(ctx context.Context, bootstrap, topic string) (DLQTopic, []strin
 			reason, missing := parseDLQReason(r.Headers)
 			result.ByReason[reason]++
 			if missing {
-				warnings = append(warnings, "DLQ: missing reason header")
+				missingHeader++
 			}
 		})
 		if got == 0 {
 			// Idle: no new records within the wait window — caught up (or empty).
 			break
 		}
+	}
+	if missingHeader > 0 {
+		warnings = append(warnings, fmt.Sprintf("DLQ: %d messages without dq.reason header (bucketed as unknown)", missingHeader))
 	}
 
 	return result, warnings, nil
