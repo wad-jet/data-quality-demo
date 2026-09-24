@@ -68,6 +68,4 @@ func WriteJSON(r Report, path string) error {
 		return err
 	}
 	return nil
-
-
 }
