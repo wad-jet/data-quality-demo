@@ -84,7 +84,7 @@ type Report struct {
 	DLQ           DLQ              `json:"dlq"`
 	Timeline      []TimelineBucket `json:"timeline"`
 	Warnings      []string         `json:"warnings,omitempty"`
-	LedgerEntries int              `json:"-"` // для human-заголовка (spec §7)
+	LedgerEntries int              `json:"ledger_entries,omitempty"` // для human-заголовка (spec §7)
 }
 
 // LoadFindings читает findings.jsonl.

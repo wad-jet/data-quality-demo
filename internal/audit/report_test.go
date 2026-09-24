@@ -70,8 +70,8 @@ func TestWriteJSON(t *testing.T) {
 	if !back.GeneratedAt.Equal(sampleReport().GeneratedAt) {
 		t.Fatalf("generated_at mismatch: %v", back.GeneratedAt)
 	}
-	if strings.Contains(string(data), "ledger_entries") {
-		t.Fatalf("LedgerEntries must not be serialized (json:-)")
+	if !strings.Contains(string(data), "ledger_entries") {
+		t.Fatalf("LedgerEntries must be serialized (json:ledger_entries)")
 	}
 }
 
