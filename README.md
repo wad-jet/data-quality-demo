@@ -91,7 +91,7 @@ make broker-down # docker compose down
   таймлайн, overall; в `audit-report.json` — структурированный отчёт.
 - **`make demo` сам прогоняет audit** (до останова брокера) с
   `-dlq-topic dq.orders.dlq` — поэтому `out/audit-report.json` после демо содержит
-  реальные счётчики DLQ. В конце демо demo также рендерит `out/audit-report.md`
+  реальные счётчики DLQ. В конце демо также рендерит `out/audit-report.md`
   (Markdown-отчёт из того же JSON).
 - **Сверка DLQ:** офлайн-секция `dlq` считается из findings («ожидаемое»),
   `dlq_topic` (при `-dlq-topic`) читается из брокера («факт»). Расхождение

@@ -43,7 +43,7 @@ demo:
 	echo "[demo] rendering audit report to Markdown (out/audit-report.md)..."; \
 	./bin/audit -from out/audit-report.json -format md -out out/audit-report.md; \
 	echo ""; \
-	echo "[demo] DONE. Report: $(CURDIR)/out/audit-report.json (md: $(CURDIR)/out/audit-report.md); findings: $(CURDIR)/out/findings.jsonl"
+	echo "[demo] DONE. Report: $(CURDIR)/out/audit-report.json; md: $(CURDIR)/out/audit-report.md; findings: $(CURDIR)/out/findings.jsonl"
 
 # Broker only: start
 broker-up:
