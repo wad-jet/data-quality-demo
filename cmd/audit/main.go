@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -35,6 +36,9 @@ func runAudit(args []string, stdout, stderr io.Writer) int {
 	}
 	bootstrap := fs.String("bootstrap", bootstrapDefault, "Kafka bootstrap server (build mode; defaults to $DQ_BOOTSTRAP or localhost:9092)")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 1
 	}
 

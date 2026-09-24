@@ -10,7 +10,8 @@ CLI `bin/audit`: строит и рендерит отчёт о качестве
 - **Build-режим** — из исходных файлов: `-ledger` + `-findings` (оба обязательны).
   Строит отчёт с нуля; всегда печатает text в stdout и (при `-out`) JSON.
 - **Render-режим** — из готового отчёта: `-from` (путь к `audit-report.json`).
-  Рендерит его в `-format` (text/md/html). Флаги build-режима не принимаются.
+  Рендерит его в `-format` (text/md/html). `-ledger`/`-findings` вместе с
+  `-from` — usage-ошибка; `-dlq-topic`/`-bootstrap` в render-режиме игнорируются.
 
 ## Флаги
 

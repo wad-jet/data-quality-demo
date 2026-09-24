@@ -170,3 +170,17 @@ func TestRunAuditDLQDeadBroker(t *testing.T) {
 		t.Fatalf("stderr missing dlq error, got %q", errBuf.String())
 	}
 }
+
+// TestRunAuditHelp: -h/-help must exit 0 (help is not an error).
+func TestRunAuditHelp(t *testing.T) {
+	for _, arg := range []string{"-h", "-help"} {
+		var outBuf, errBuf bytes.Buffer
+		code := runAudit([]string{arg}, &outBuf, &errBuf)
+		if code != 0 {
+			t.Fatalf("%s: expected exit 0, got %d (stderr: %q)", arg, code, errBuf.String())
+		}
+		if outBuf.String() != "" {
+			t.Fatalf("%s: expected empty stdout, got %q", arg, outBuf.String())
+		}
+	}
+}
