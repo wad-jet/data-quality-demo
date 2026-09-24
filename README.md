@@ -109,8 +109,8 @@ make broker-down # docker compose down
   человекочитаемые отчёты на русском: вердикт, «что проверяли»,
   метрики простыми словами, таблица дефектов по видам с легендой,
   DLQ, таймлайн с барами, «как проверить отчёт за 10 секунд».
-- Форматы данных и формулы метрик: `manual_docs/reference/data-formats.md`;
-  флаги и режимы audit: `manual_docs/reference/audit.md`.
+- Форматы данных и формулы метрик: [`manual_docs/reference/data-formats.md`](manual_docs/reference/data-formats.md);
+  флаги и режимы audit: [`manual_docs/reference/audit.md`](manual_docs/reference/audit.md).
 
 ## Фоновые проверки и устойчивость к краху
 
@@ -142,7 +142,7 @@ make broker-down # docker compose down
 
 Подробности и таблица гарантий при крахе:
 `docs/superpowers/specs/2026-09-23-background-dq-watcher-design.md` §4.
-Формат `producer-findings.jsonl`: `manual_docs/reference/data-formats.md`.
+Формат `producer-findings.jsonl`: [`manual_docs/reference/data-formats.md`](manual_docs/reference/data-formats.md).
 
 ## Ссылки
 
