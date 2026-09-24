@@ -92,7 +92,8 @@ make broker-down # docker compose down
 - **`make demo` сам прогоняет audit** (до останова брокера) с
   `-dlq-topic dq.orders.dlq` — поэтому `out/audit-report.json` после демо содержит
   реальные счётчики DLQ. В конце демо также рендерит `out/audit-report.md`
-  (Markdown-отчёт из того же JSON).
+  (человекочитаемый Markdown-отчёт из того же JSON: вердикт, метрики,
+  легенда, таймлайн).
 - **Сверка DLQ:** офлайн-секция `dlq` считается из findings («ожидаемое»),
   `dlq_topic` (при `-dlq-topic`) читается из брокера («факт»). Расхождение
   показывается в отчёте как `— РАСХОЖДЕНИЕ` и попадает в `warnings`
@@ -103,8 +104,11 @@ make broker-down # docker compose down
   ooo (и, в зависимости от тайминга, lag) — precision < 100%
   (кросс-срабатывание «старого ts» — см. справку);
   `DLQ: 112 (field_missing=42 type_drift=47 invalid_json=23)`, `dlq_errors=0`.
-- Форматы отчёта: text (stdout) / JSON (`-out`) / Markdown / HTML
-  (`-from … -format md|html`).
+- Форматы отчёта: text (stdout) и JSON (`-out`) — для специалистов и
+  машинной обработки; Markdown / HTML (`-from … -format md|html`) —
+  человекочитаемые отчёты на русском: вердикт, «что проверяли»,
+  метрики простыми словами, таблица дефектов по видам с легендой,
+  DLQ, таймлайн с барами, «как проверить отчёт за 10 секунд».
 - Форматы данных и формулы метрик: `manual_docs/reference/data-formats.md`;
   флаги и режимы audit: `manual_docs/reference/audit.md`.
 

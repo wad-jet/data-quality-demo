@@ -33,10 +33,15 @@ CLI `bin/audit`: строит и рендерит отчёт о качестве
 - **text** — human-таблица в stdout (дефолт build-режима и `-format text`).
 - **JSON** — `audit-report.json` (build + `-out`). Схема — в
   `manual_docs/reference/data-formats.md` (§ audit-report.json).
-- **Markdown** — `-from … -format md`: заголовок, overall, таблица per_tag,
-  DLQ (offline + topic, если есть), таймлайн, warnings.
-- **HTML** — `-from … -format html`: самодостаточный файл (инлайн CSS, без JS);
-  расхождение DLQ подсвечивается CSS-классом `mismatch`.
+- **Markdown** — `-from … -format md` — человекочитаемый отчёт на русском:
+  вердикт («проблем не обнаружено» / список проблем), «что проверяли»,
+  метрики простыми словами (recall/precision с дробями и процентами),
+  таблица дефектов по видам с легендой («что это»), DLQ (offline + topic,
+  если есть; «совпадает» / «РАСХОЖДЕНИЕ»), таймлайн с ASCII-барами и
+  пометками о разрывах, «как проверить отчёт за 10 секунд».
+- **HTML** — `-from … -format html`: тот же человекочитаемый отчёт +
+  цветовые маркеры (вердикт, recall/precision по видам, расхождение DLQ —
+  класс `mismatch`) и бары таймлайна; самодостаточный файл (инлайн CSS, без JS).
 
 ## Exit codes
 
