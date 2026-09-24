@@ -23,7 +23,7 @@ func sampleReportFull() Report {
 		}},
 		DLQ:      DLQ{Count: 1, ByReason: map[string]int{"field_missing": 1}},
 		Timeline: []TimelineBucket{{BucketS: 1758621600, Count: 1}},
-		Overall:  Overall{TotalDefects: 3, Caught: 2, Recall: 0.6667, Findings: 3, Precision: 0.6667},
+		Overall:  Overall{TotalDefects: 3, Caught: 2, Recall: 0.6667, Findings: 3, FalsePos: 1, Precision: 0.6667},
 		Warnings: []string{"sample warning"},
 	}
 }
@@ -85,16 +85,30 @@ func TestLoadJSONTypeError(t *testing.T) {
 }
 
 func TestRenderMarkdown(t *testing.T) {
-	out := sampleReportFull().RenderMarkdown()
-	// basic checks
-	for _, want := range []string{"# Audit report", "## Overall", "## Per tag", "| missing |", "| dup |", "DLQ (offline, schema-violations): 1", "## Warnings", "sample warning"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("markdown missing %q", want)
-		}
+	r := sampleReportFull() // Overall: Findings 3, FalsePos 1 (у dup) → precision (3-1)/3 = 66.7%
+	md, err := RenderMarkdown(r)
+	if err != nil {
+		t.Fatalf("render: %v", err)
 	}
-	// No DLQTopic in the sample -> no topic line.
-	if strings.Contains(out, "DLQ (topic)") {
-		t.Fatalf("markdown should not have DLQ (topic) line when DLQTopic is nil")
+	for _, m := range []string{
+		"# Отчёт о качестве данных (audit)",
+		"**Вердикт: обнаружены проблемы (2).**", // dup recall 1/2 + "sample warning"
+		"## Что проверяли",
+		"## Метрики простыми словами",
+		"| Recall | 2/3 (66.7%) |",
+		"| Precision | 2/3 (66.7%) |",
+		"## Дефекты по видам",
+		"| missing | заказ без обязательного поля |",
+		"## DLQ — очередь проблемных сообщений",
+		"Должно быть: 1 (по находкам инспектора, offline)",
+		"Фактически: не считалось (требуется запущенный брокер и флаг `-dlq-topic`)",
+		"## Как проверять отчёт за 10 секунд",
+		"audit-report.json",
+		"`-format text`",
+	} {
+		if !strings.Contains(md, m) {
+			t.Fatalf("MD missing %q in:\n%s", m, md)
+		}
 	}
 }
 
@@ -111,27 +125,41 @@ func dlqTopicReport(match bool) Report {
 }
 
 func TestRenderMarkdownDLQTopic(t *testing.T) {
-	matchOut := dlqTopicReport(true).RenderMarkdown()
-	if !strings.Contains(matchOut, "DLQ (topic):") {
-		t.Fatalf("markdown match case missing DLQ (topic) line: %s", matchOut)
+	match, err := RenderMarkdown(dlqTopicReport(true))
+	if err != nil {
+		t.Fatalf("render: %v", err)
 	}
-	if !strings.Contains(matchOut, "совпадает с findings") {
-		t.Fatalf("markdown match case missing match indicator: %s", matchOut)
+	if !strings.Contains(match, "Статус: совпадает") {
+		t.Fatalf("match: %s", match)
 	}
-	mismatchOut := dlqTopicReport(false).RenderMarkdown()
-	if !strings.Contains(mismatchOut, "РАСХОЖДЕНИЕ") {
-		t.Fatalf("markdown mismatch case missing mismatch indicator: %s", mismatchOut)
+	mism, err := RenderMarkdown(dlqTopicReport(false))
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(mism, "Статус: РАСХОЖДЕНИЕ") || !strings.Contains(mism, "ожид.") {
+		t.Fatalf("mismatch details in-place: %s", mism)
+	}
+	// DLQTopic == nil
+	base, _ := RenderMarkdown(sampleReportFull())
+	if !strings.Contains(base, "Фактически: не считалось") {
+		t.Fatalf("nil topic: %s", base)
 	}
 }
 
 func TestRenderMarkdownTimeline(t *testing.T) {
-	out := sampleReportFull().RenderMarkdown()
-	if !strings.Contains(out, "## Timeline") {
-		t.Fatalf("markdown missing Timeline header")
+	r := sampleReportFull()
+	r.Timeline = []TimelineBucket{{BucketS: 100, Count: 3}, {BucketS: 101, Count: 2}, {BucketS: 200, Count: 5}}
+	md, _ := RenderMarkdown(r)
+	if !strings.Contains(md, "## Таймлайн") ||
+		!strings.Contains(md, "разрыв 99с") ||
+		!strings.Contains(md, "дефект «лаг»") {
+		t.Fatalf("timeline: %s", md)
 	}
-	// Expect bucket format t=<bucket>:<count>
-	if !strings.Contains(out, "t=1758621600:1") {
-		t.Fatalf("markdown missing timeline bucket")
+	// пустой таймлайн → секции нет
+	r.Timeline = nil
+	md2, _ := RenderMarkdown(r)
+	if strings.Contains(md2, "## Таймлайн") {
+		t.Fatalf("empty timeline section must be omitted: %s", md2)
 	}
 }
 
@@ -176,5 +204,40 @@ func TestRenderHTMLDLQTopic(t *testing.T) {
 	}
 	if !strings.Contains(mismatchOut, `<p class="mismatch">DLQ (topic)`) {
 		t.Fatalf("html mismatch case should carry mismatch class: %s", mismatchOut)
+	}
+}
+
+func TestRenderMarkdownEmptyReport(t *testing.T) {
+	r := Report{
+		Overall: Overall{}, // всё нулевое, пустой таймлайн
+		PerTag:  []TagMetric{{Tag: "missing", Total: 0, Caught: 0, Findings: 0}},
+	}
+	md, err := RenderMarkdown(r)
+	if err != nil {
+		t.Fatalf("render empty: %v", err)
+	}
+	if !strings.Contains(md, "**Вердикт: проблем не обнаружено.**") {
+		t.Fatalf("empty must be healthy: %s", md)
+	}
+	if strings.Contains(md, "## Таймлайн") {
+		t.Fatalf("no timeline section: %s", md)
+	}
+	// тег с Total==0 — recall «—», а не 0.0%
+	if !strings.Contains(md, "| missing | заказ без обязательного поля | 0 | 0 | — | 0 | 0 | — |") {
+		t.Fatalf("Total==0 row must show «—»: %s", md)
+	}
+}
+
+func TestRenderMarkdownNoOooNoteForOtherTags(t *testing.T) {
+	r := sampleReportFull()
+	r.PerTag = []TagMetric{{Tag: "missing", Total: 2, Caught: 2, Recall: 1.0, Findings: 3, FalsePos: 1, Precision: 0.6667}}
+	md, _ := RenderMarkdown(r)
+	if strings.Contains(md, "одна причина, две записи") {
+		t.Fatalf("note must be ooo/lag only: %s", md)
+	}
+	r.PerTag = append(r.PerTag, TagMetric{Tag: "ooo", Total: 1, Caught: 1, Recall: 1.0, Findings: 2, FalsePos: 1, Precision: 0.5})
+	md2, _ := RenderMarkdown(r)
+	if !strings.Contains(md2, "одна причина, две записи") {
+		t.Fatalf("ooo fp>0 note expected: %s", md2)
 	}
 }

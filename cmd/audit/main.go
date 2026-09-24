@@ -67,9 +67,15 @@ func runAudit(args []string, stdout, stderr io.Writer) int {
 		var rendered string
 		switch *format {
 		case "md":
-			rendered = rep.RenderMarkdown()
+			var err error
+			rendered, err = audit.RenderMarkdown(rep)
+			if err != nil {
+				fmt.Fprintf(stderr, "audit: render md: %v\n", err)
+				return 1
+			}
 		case "html":
 			rendered = rep.RenderHTML()
+
 		default: // text
 			rendered = rep.RenderHuman()
 		}

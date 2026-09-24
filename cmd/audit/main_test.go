@@ -40,7 +40,10 @@ func TestRunAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fixture LoadJSON: %v", err)
 	}
-	md := rep.RenderMarkdown()
+	md, err := audit.RenderMarkdown(rep)
+	if err != nil {
+		t.Fatalf("render md: %v", err)
+	}
 	html := rep.RenderHTML()
 	human := rep.RenderHuman()
 
