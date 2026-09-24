@@ -29,6 +29,18 @@
 | `detail` | string | описание находки |
 | `ts` | RFC3339 | **event-time** (ts заказа, не момент детекции); если в payload нет разпарсиваемого ts — фолбэк на момент детекции |
 
+## producer-findings.jsonl (producer — самоконтроль исходящего потока)
+
+Формат тот же, что у `findings.jsonl` (одна JSON-строка на finding
+`checks.Finding`, те же поля и значения `check`). Отличия:
+
+- `offset` всегда `0` — Kafka назначает offset после отправки; проверки
+  не используют его для суждений, он фиксируется в finding.
+- Файл открывается с `O_APPEND`; `make clean` и `make demo` сбрасывают его
+  перед прогоном (повторные прогоны не накапливают).
+- Это самоконтроль producer'а: ground truth остаётся ledger, caught/total
+  на стороне producer'а не считается.
+
 ## audit-report.json (audit)
 
 Схема (JSON, `-out`): `generated_at`, `inputs{ledger,findings}`,
