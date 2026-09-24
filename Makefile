@@ -17,8 +17,8 @@ demo:
 	trap 'echo "[demo] interrupted - shutting down broker..."; cleanup; trap - EXIT; exit 143' TERM; \
 	trap 'cleanup' EXIT; \
 	set -e; \
-	echo "[demo] resetting demo artifacts (rm -f ledger.jsonl findings.jsonl)..."; \
-	rm -f ledger.jsonl findings.jsonl; \
+	echo "[demo] resetting demo artifacts (rm -f ledger.jsonl findings.jsonl producer-findings.jsonl)..."; \
+	rm -f ledger.jsonl findings.jsonl producer-findings.jsonl; \
 	echo "[demo] starting broker (docker compose up -d)..."; \
 	docker compose up -d; \
 	echo "[demo] waiting for broker at $(BROKER_HOST):$(BROKER_PORT) (up to $(BROKER_TIMEOUT)s)..."; \
@@ -61,4 +61,4 @@ test:
 # Remove build artifacts and demo outputs
 clean:
 	rm -rf bin
-	rm -f ledger.jsonl producer-ledger.jsonl findings.jsonl audit-report.json *.log
+	rm -f ledger.jsonl producer-ledger.jsonl findings.jsonl producer-findings.jsonl audit-report.json *.log

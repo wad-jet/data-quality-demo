@@ -6,5 +6,6 @@ bin/
 producer-ledger.jsonl
 ledger.jsonl
 findings.jsonl
+producer-findings.jsonl
 audit-report.json
 TODO.md
