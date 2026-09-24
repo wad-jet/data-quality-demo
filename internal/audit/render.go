@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"dqdemo/internal/checks"
 )
 
 // LoadJSON reads a JSON report from the given path.
@@ -65,8 +67,25 @@ func RenderMarkdown(r Report) (string, error) {
 	}
 
 	b.WriteString("## Что проверяли\n\n")
-	fmt.Fprintf(&b, "Producer отправил %d событий, из них с заложенными дефектами: %d. Инспектор нашёл %d записей: %d — реальные дефекты, %d — ложные срабатывания.\n\n",
-		r.LedgerEntries, r.Overall.TotalDefects, r.Overall.Findings, r.Overall.Caught, r.Overall.FalsePos)
+	k := r.Overall.Findings - r.Overall.FalsePos - r.Overall.Caught
+	if r.Overall.Findings == 0 {
+		fmt.Fprintf(&b, "Producer отправил %d событий, из них с заложенными дефектами: %d. Записей инспектора (consumer — читает каждое событие и фиксирует нарушения) нет.\n\n",
+			r.LedgerEntries, r.Overall.TotalDefects)
+	} else {
+		caughtNote := "(найдены все)"
+		if r.Overall.Caught < r.Overall.TotalDefects {
+			caughtNote = fmt.Sprintf("(найдено %d из %d)", r.Overall.Caught, r.Overall.TotalDefects)
+		}
+		fmt.Fprintf(&b, "Producer отправил %d событий, из них с заложенными дефектами: %d. Инспектор (consumer — читает каждое событие и фиксирует нарушения) — записей всего %d:\n",
+			r.LedgerEntries, r.Overall.TotalDefects, r.Overall.Findings)
+		fmt.Fprintf(&b, "- %d — заложенные дефекты %s,\n", r.Overall.Caught, caughtNote)
+		if k > 0 {
+			fmt.Fprintf(&b, "- %d — дополнительные записи на те же дефекты (повторные отправки),\n", k)
+		}
+		fmt.Fprintf(&b, "- %d — ложные срабатывания (не подтвердились при сверке с ledger).\n", r.Overall.FalsePos)
+		fmt.Fprintf(&b, "\nПодтвердились записи: %d из %d — это и есть Precision.\n\n",
+			r.Overall.Findings-r.Overall.FalsePos, r.Overall.Findings)
+	}
 
 	b.WriteString("## Метрики простыми словами\n\n")
 	b.WriteString("| Метрика | Значение | Что это значит |\n|---|---|---|\n")
@@ -77,7 +96,7 @@ func RenderMarkdown(r Report) (string, error) {
 	b.WriteString("\n")
 
 	b.WriteString("## Дефекты по видам\n\n")
-	b.WriteString("| Дефект | Что это | Заложено | Найдено | Recall | Записей | Ложных | Precision |\n|---|---|---:|---:|---:|---:|---:|---:|\n")
+	b.WriteString("| Дефект | Что это | Заложено | Найдено из заложенных | Recall | Всего записей | Ложных | Precision |\n|---|---|---:|---:|---:|---:|---:|---:|\n")
 	for _, tm := range r.PerTag {
 		recall, prec := "—", "—"
 		if tm.Total > 0 {
@@ -92,13 +111,32 @@ func RenderMarkdown(r Report) (string, error) {
 	b.WriteString("\n")
 	for _, tm := range r.PerTag {
 		if (tm.Tag == "ooo" || tm.Tag == "lag") && tm.FalsePos > 0 {
-			b.WriteString("«Старое» событие (лаг) выглядит и как «не по порядку» — одна причина, две записи; это ожидаемое поведение демо, а не ошибка.\n\n")
+			b.WriteString("Событие с «старой» отметкой времени (lag) приходит и не по порядку — поэтому инспектор фиксирует его дважды: как lag и как ooo. Запись ooo не совпадает ни с одним заложенным ooo-дефектом и считается для ooo «ложной», хотя порядок действительно был нарушен. Это ожидаемое поведение демо, а не ошибка детектора.\n\n")
 			break
 		}
 	}
+	b.WriteString("**Как читать колонки:**\n\n")
+	b.WriteString("- **Заложено** — сколько дефектов этого вида producer вживил намеренно (записи ledger).\n")
+	b.WriteString("- **Найдено из заложенных** — сколько из них инспектор нашёл (Заложено = Найдено → Recall 100%).\n")
+	b.WriteString("- **Всего записей** — все записи инспектора этого вида. Запись — на сообщение, а «заложено/найдено» — на дефект: один дефект может дать несколько записей (повторная отправка сообщения).\n")
+	b.WriteString("- **Ложных** — записи, не подтвердившиеся при сверке с ledger.\n\n")
 
-	b.WriteString("## DLQ — очередь проблемных сообщений\n\n")
-	fmt.Fprintf(&b, "Должно быть: %d (по находкам инспектора, offline)\n", r.DLQ.Count)
+	b.WriteString("## DLQ (dead-letter queue) — очередь проблемных сообщений\n\n")
+	if r.DLQ.Count > 0 {
+		var parts []string
+		for _, tag := range tagOrder {
+			check := tagToCheck[tag]
+			if checks.IsSchemaViolation(check) {
+				if n := r.DLQ.ByReason[check]; n > 0 {
+					parts = append(parts, fmt.Sprintf("%d (%s)", n, tag))
+				}
+			}
+		}
+		fmt.Fprintf(&b, "Должно быть: %d = %s (по находкам инспектора, без обращения к брокеру)\n",
+			r.DLQ.Count, strings.Join(parts, " + "))
+	} else {
+		fmt.Fprintf(&b, "Должно быть: %d (по находкам инспектора, без обращения к брокеру)\n", r.DLQ.Count)
+	}
 	if r.DLQTopic != nil {
 		fmt.Fprintf(&b, "Фактически: %d (прочитано из брокера)\n", r.DLQTopic.Count)
 		if m := CheckDLQTopic(r.DLQ, *r.DLQTopic); m == "" {
@@ -109,10 +147,15 @@ func RenderMarkdown(r Report) (string, error) {
 	} else {
 		b.WriteString("Фактически: не считалось (требуется запущенный брокер и флаг `-dlq-topic`)\n")
 	}
-	b.WriteString("\n")
+	b.WriteString("В DLQ попадают только нарушения схемы (missing, typedrift, invalidjson); dup, ooo и lag — валидные сообщения, остаются в основном топике и фиксируются только записями инспектора.\n\n")
 
 	if len(r.Timeline) > 0 {
 		b.WriteString("## Таймлайн\n\n")
+		total := 0
+		for _, bk := range r.Timeline {
+			total += bk.Count
+		}
+		fmt.Fprintf(&b, "Распределение записей инспектора по **времени события** — отметке в самом событии, а не моменту получения (для некорректного JSON отметка неизвестна — берётся момент получения). Всего записей: %d — это все записи из раздела «Что проверяли».\n\n", total)
 		clusters := TimelineClusters(r.Timeline)
 		maxSum := 0
 		for _, c := range clusters {
@@ -122,7 +165,7 @@ func RenderMarkdown(r Report) (string, error) {
 		}
 		for i, c := range clusters {
 			if i > 0 {
-				fmt.Fprintf(&b, "разрыв %dс — как правило, дефект «лаг»: события со «старой» отметкой времени\n\n", c.StartS-clusters[i-1].EndS)
+				fmt.Fprintf(&b, "разрыв %dс — событий с таким временем события не было: так проявляется дефект «лаг» — события отправляются сейчас, но несут «прошлую» отметку времени, и между ними и свежими событиями образуется разрыв\n\n", c.StartS-clusters[i-1].EndS)
 			}
 			fmt.Fprintf(&b, "%s–%s (время события) %s %d\n",
 				utcHMS(c.StartS), utcHMS(c.EndS), strings.Repeat("█", BarWidth(c.Total, maxSum)), c.Total)
@@ -133,8 +176,8 @@ func RenderMarkdown(r Report) (string, error) {
 	b.WriteString("## Как проверять отчёт за 10 секунд\n\n")
 	b.WriteString("1. Recall = 100% по всем видам? — значит, ни один заложенный дефект не просочился.\n")
 	b.WriteString("2. DLQ: «совпадает»? — значит, в очереди проблемных сообщений ничего не потеряно.\n")
-	b.WriteString("3. Precision ниже 100% у ooo/lag — это ожидаемо (двойные срабатывания); у остальных видов — 100%.\n")
-	b.WriteString("4. Вердикт в шапке сводит всё в одну строку.\n\n")
+	b.WriteString("3. Precision = 100% у всех видов, кроме ooo (и иногда lag): у них ниже 100% — ожидаемо: «старое» событие фиксируется и как lag, и как ooo, и запись ooo не совпадает с заложенными ooo-дефектами (см. пометку после таблицы). Ниже 100% у любого другого вида — повод разбираться.\n")
+	b.WriteString("4. Сошлись пункты 1–3 и в отчёте нет предупреждений (warnings о неизвестных проверках/дефектах) — в шапке будет «проблем не обнаружено»; иначе шапка назовёт причину.\n\n")
 
 	fmt.Fprintf(&b, "---\n*Сгенерировано: %s · Данные: %s, %s*\n",
 		r.GeneratedAt.UTC().Format("2006-01-02 15:04 (UTC)"), r.Inputs.Ledger, r.Inputs.Findings)

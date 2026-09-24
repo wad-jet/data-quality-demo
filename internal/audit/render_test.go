@@ -18,12 +18,12 @@ func sampleReportFull() Report {
 			Tag: "missing", Check: "field_missing", Total: 1, Caught: 1, Recall: 1.0,
 			Findings: 1, FalsePos: 0, Precision: 1.0,
 		}, {
-			Tag: "dup", Check: "duplicate", Total: 2, Caught: 1, Recall: 0.5,
-			Findings: 2, FalsePos: 1, Precision: 0.5,
+			Tag: "ooo", Check: "out_of_order", Total: 2, Caught: 1, Recall: 0.5,
+			Findings: 3, FalsePos: 1, Precision: 0.6667,
 		}},
 		DLQ:      DLQ{Count: 1, ByReason: map[string]int{"field_missing": 1}},
-		Timeline: []TimelineBucket{{BucketS: 1758621600, Count: 1}},
-		Overall:  Overall{TotalDefects: 3, Caught: 2, Recall: 0.6667, Findings: 3, FalsePos: 1, Precision: 0.6667},
+		Timeline: []TimelineBucket{{BucketS: 1758621600, Count: 2}, {BucketS: 1758621700, Count: 2}},
+		Overall:  Overall{TotalDefects: 3, Caught: 2, Recall: 0.6667, Findings: 4, FalsePos: 1, Precision: 0.75},
 		Warnings: []string{"sample warning"},
 	}
 }
@@ -85,30 +85,76 @@ func TestLoadJSONTypeError(t *testing.T) {
 }
 
 func TestRenderMarkdown(t *testing.T) {
-	r := sampleReportFull() // Overall: Findings 3, FalsePos 1 (у dup) → precision (3-1)/3 = 66.7%
-	md, err := RenderMarkdown(r)
+	md, err := RenderMarkdown(sampleReportFull())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	for _, m := range []string{
 		"# Отчёт о качестве данных (audit)",
-		"**Вердикт: обнаружены проблемы (2).**", // dup recall 1/2 + "sample warning"
+		"**Вердикт: обнаружены проблемы (2).**",
 		"## Что проверяли",
-		"## Метрики простыми словами",
+		"Инспектор (consumer — читает каждое событие и фиксирует нарушения) — записей всего 4:",
+		"- 2 — заложенные дефекты (найдено 2 из 3),",
+		"- 1 — дополнительные записи на те же дефекты (повторные отправки),",
+		"- 1 — ложные срабатывания (не подтвердились при сверке с ledger).",
+		"Подтвердились записи: 3 из 4 — это и есть Precision.",
+		"| Метрика | Значение | Что это значит |",
 		"| Recall | 2/3 (66.7%) |",
-		"| Precision | 2/3 (66.7%) |",
+		"| Precision | 3/4 (75.0%) |",
 		"## Дефекты по видам",
-		"| missing | заказ без обязательного поля (например, суммы) — корректно обработать его нельзя |",
-		"## DLQ — очередь проблемных сообщений",
-		"Должно быть: 1 (по находкам инспектора, offline)",
+		"| Дефект | Что это | Заложено | Найдено из заложенных | Recall | Всего записей | Ложных | Precision |",
+		"заказ без обязательного поля (например, суммы) — корректно обработать его нельзя",
+		"Событие с «старой» отметкой времени (lag) приходит и не по порядку",
+		"**Как читать колонки:**",
+		"- **Заложено** — сколько дефектов этого вида producer вживил намеренно (записи ledger).",
+		"- **Найдено из заложенных** — сколько из них инспектор нашёл (Заложено = Найдено → Recall 100%).",
+		"- **Всего записей** — все записи инспектора этого вида. Запись — на сообщение, а «заложено/найдено» — на дефект: один дефект может дать несколько записей (повторная отправка сообщения).",
+		"- **Ложных** — записи, не подтвердившиеся при сверке с ledger.",
+		"## DLQ (dead-letter queue) — очередь проблемных сообщений",
+		"Должно быть: 1 = 1 (missing) (по находкам инспектора, без обращения к брокеру)",
 		"Фактически: не считалось (требуется запущенный брокер и флаг `-dlq-topic`)",
+		"В DLQ попадают только нарушения схемы (missing, typedrift, invalidjson); dup, ooo и lag — валидные сообщения, остаются в основном топике и фиксируются только записями инспектора.",
+		"## Таймлайн",
+		"по **времени события** — отметке в самом событии, а не моменту получения",
+		"Всего записей: 4 — это все записи из раздела «Что проверяли».",
+		"разрыв 100с — событий с таким временем события не было",
 		"## Как проверять отчёт за 10 секунд",
-		"audit-report.json",
-		"`-format text`",
+		"3. Precision = 100% у всех видов, кроме ooo (и иногда lag): у них ниже 100% — ожидаемо",
+		"4. Сошлись пункты 1–3 и в отчёте нет предупреждений",
 	} {
 		if !strings.Contains(md, m) {
-			t.Fatalf("MD missing %q in:\n%s", m, md)
+			t.Fatalf("MD missing %q", m)
 		}
+	}
+}
+
+func TestRenderMarkdownAllFound(t *testing.T) {
+	r := Report{
+		GeneratedAt:   time.Now().UTC(),
+		Inputs:        Inputs{Ledger: "l.jsonl", Findings: "f.jsonl"},
+		LedgerEntries: 1,
+		PerTag: []TagMetric{{
+			Tag: "missing", Check: "field_missing", Total: 1, Caught: 1, Recall: 1.0,
+			Findings: 1, FalsePos: 0, Precision: 1.0,
+		}},
+		DLQ:      DLQ{Count: 0, ByReason: map[string]int{}},
+		Timeline: []TimelineBucket{{BucketS: 100, Count: 1}},
+		Overall:  Overall{TotalDefects: 1, Caught: 1, Recall: 1.0, Findings: 1, FalsePos: 0, Precision: 1.0},
+	}
+	md, err := RenderMarkdown(r)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, m := range []string{
+		"- 1 — заложенные дефекты (найдены все),",
+		"Должно быть: 0 (по находкам инспектора, без обращения к брокеру)",
+	} {
+		if !strings.Contains(md, m) {
+			t.Fatalf("allfound: missing %q", m)
+		}
+	}
+	if strings.Contains(md, "дополнительные записи") {
+		t.Fatalf("K==0: additional-records line must be absent: %s", md)
 	}
 }
 
@@ -136,30 +182,30 @@ func TestRenderMarkdownDLQTopic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
-	if !strings.Contains(mism, "Статус: РАСХОЖДЕНИЕ") || !strings.Contains(mism, "ожид.") {
-		t.Fatalf("mismatch details in-place: %s", mism)
+	if !strings.Contains(mism, "Статус: РАСХОЖДЕНИЕ") {
+		t.Fatalf("mismatch: %s", mism)
 	}
-	// DLQTopic == nil
-	base, _ := RenderMarkdown(sampleReportFull())
-	if !strings.Contains(base, "Фактически: не считалось") {
-		t.Fatalf("nil topic: %s", base)
+	if !strings.Contains(match, "В DLQ попадают только нарушения схемы") {
+		t.Fatalf("dlq sentence: %s", match)
 	}
 }
 
 func TestRenderMarkdownTimeline(t *testing.T) {
 	r := sampleReportFull()
 	r.Timeline = []TimelineBucket{{BucketS: 100, Count: 3}, {BucketS: 101, Count: 2}, {BucketS: 200, Count: 5}}
-	md, _ := RenderMarkdown(r)
-	if !strings.Contains(md, "## Таймлайн") ||
-		!strings.Contains(md, "разрыв 99с") ||
-		!strings.Contains(md, "дефект «лаг»") {
-		t.Fatalf("timeline: %s", md)
+	md, err := RenderMarkdown(r)
+	if err != nil {
+		t.Fatalf("render: %v", err)
 	}
-	// пустой таймлайн → секции нет
-	r.Timeline = nil
-	md2, _ := RenderMarkdown(r)
-	if strings.Contains(md2, "## Таймлайн") {
-		t.Fatalf("empty timeline section must be omitted: %s", md2)
+	for _, m := range []string{
+		"## Таймлайн",
+		"Всего записей: 10 — это все записи из раздела «Что проверяли».",
+		"разрыв 99с — событий с таким временем события не было: так проявляется дефект «лаг»",
+		"несут «прошлую» отметку времени, и между ними и свежими событиями образуется разрыв",
+	} {
+		if !strings.Contains(md, m) {
+			t.Fatalf("timeline: missing %q", m)
+		}
 	}
 }
 
@@ -237,35 +283,37 @@ func TestRenderHTMLZeroCountTimeline(t *testing.T) {
 
 func TestRenderMarkdownEmptyReport(t *testing.T) {
 	r := Report{
-		Overall: Overall{}, // всё нулевое, пустой таймлайн
-		PerTag:  []TagMetric{{Tag: "missing", Total: 0, Caught: 0, Findings: 0}},
+		Overall: Overall{},
+		PerTag:  []TagMetric{{Tag: "missing", Check: "field_missing", Total: 0, Caught: 0, Findings: 0}},
 	}
 	md, err := RenderMarkdown(r)
 	if err != nil {
 		t.Fatalf("render empty: %v", err)
 	}
-	if !strings.Contains(md, "**Вердикт: проблем не обнаружено.**") {
-		t.Fatalf("empty must be healthy: %s", md)
+	for _, m := range []string{
+		"Записей инспектора (consumer — читает каждое событие и фиксирует нарушения) нет.",
+		"| missing | заказ без обязательного поля (например, суммы) — корректно обработать его нельзя | 0 | 0 | — | 0 | 0 | — |",
+	} {
+		if !strings.Contains(md, m) {
+			t.Fatalf("empty: missing %q", m)
+		}
 	}
 	if strings.Contains(md, "## Таймлайн") {
-		t.Fatalf("no timeline section: %s", md)
-	}
-	// тег с Total==0 — recall «—», а не 0.0%
-	if !strings.Contains(md, "| missing | заказ без обязательного поля (например, суммы) — корректно обработать его нельзя | 0 | 0 | — | 0 | 0 | — |") {
-		t.Fatalf("Total==0 row must show «—»: %s", md)
+		t.Fatalf("empty: timeline section must be absent")
 	}
 }
 
 func TestRenderMarkdownNoOooNoteForOtherTags(t *testing.T) {
 	r := sampleReportFull()
-	r.PerTag = []TagMetric{{Tag: "missing", Total: 2, Caught: 2, Recall: 1.0, Findings: 3, FalsePos: 1, Precision: 0.6667}}
-	md, _ := RenderMarkdown(r)
-	if strings.Contains(md, "одна причина, две записи") {
-		t.Fatalf("note must be ooo/lag only: %s", md)
+	for i := range r.PerTag {
+		r.PerTag[i].Tag = "missing"
+		r.PerTag[i].FalsePos = 3
 	}
-	r.PerTag = append(r.PerTag, TagMetric{Tag: "ooo", Total: 1, Caught: 1, Recall: 1.0, Findings: 2, FalsePos: 1, Precision: 0.5})
-	md2, _ := RenderMarkdown(r)
-	if !strings.Contains(md2, "одна причина, две записи") {
-		t.Fatalf("ooo fp>0 note expected: %s", md2)
+	md, err := RenderMarkdown(r)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.Contains(md, "Событие с «старой» отметкой времени (lag) приходит и не по порядку") {
+		t.Fatalf("note must not appear for non-ooo/lag tags")
 	}
 }
