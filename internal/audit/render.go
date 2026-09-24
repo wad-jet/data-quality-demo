@@ -132,8 +132,12 @@ func RenderMarkdown(r Report) (string, error) {
 				}
 			}
 		}
-		fmt.Fprintf(&b, "Должно быть: %d = %s (по находкам инспектора, без обращения к брокеру)\n",
-			r.DLQ.Count, strings.Join(parts, " + "))
+		if len(parts) > 0 {
+			fmt.Fprintf(&b, "Должно быть: %d = %s (по находкам инспектора, без обращения к брокеру)\n",
+				r.DLQ.Count, strings.Join(parts, " + "))
+		} else {
+			fmt.Fprintf(&b, "Должно быть: %d (по находкам инспектора, без обращения к брокеру)\n", r.DLQ.Count)
+		}
 	} else {
 		fmt.Fprintf(&b, "Должно быть: %d (по находкам инспектора, без обращения к брокеру)\n", r.DLQ.Count)
 	}

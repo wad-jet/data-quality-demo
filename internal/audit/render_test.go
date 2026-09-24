@@ -190,6 +190,18 @@ func TestRenderMarkdownDLQTopic(t *testing.T) {
 	}
 }
 
+func TestRenderMarkdownDLQEmptyByReason(t *testing.T) {
+	r := sampleReportFull()
+	r.DLQ = DLQ{Count: 1, ByReason: map[string]int{}}
+	md, err := RenderMarkdown(r)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(md, "Должно быть: 1 (по находкам инспектора, без обращения к брокеру)") {
+		t.Fatalf("empty by_reason: %s", md)
+	}
+}
+
 func TestRenderMarkdownTimeline(t *testing.T) {
 	r := sampleReportFull()
 	r.Timeline = []TimelineBucket{{BucketS: 100, Count: 3}, {BucketS: 101, Count: 2}, {BucketS: 200, Count: 5}}
