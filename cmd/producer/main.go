@@ -89,13 +89,14 @@ func main() {
 	defer ticker.Stop()
 
 	var sent, defects, dups int64
+loop:
 	for {
 		if *count > 0 && sent >= *count {
 			break
 		}
 		select {
 		case <-ctx.Done():
-			break
+			break loop
 		case <-ticker.C:
 			ev := gen.Next()
 			if err := emit.Send(ctx, []byte(ev.OrderID), ev.Payload); err != nil {

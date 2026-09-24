@@ -32,12 +32,10 @@ func (s *dlqSink) SendToDLQ(ctx context.Context, env checks.Envelope, reason str
 }
 
 type Consumer struct {
-	cfg          Config
-	findingsPath string
-	ledgerPath   string
+	cfg        Config
+	ledgerPath string
 	// runtime fields
 	dlqProducer *producer.Emitter
-	findingsW   *report.FindingsWriter
 	watcher     *dq.Watcher
 	// bookkeeping for stop conditions
 	processed   int64
@@ -56,11 +54,9 @@ func New(cfg Config, findingsPath, ledgerPath string) (*Consumer, error) {
 	}
 	reg := checks.NewDefault(cfg.LagThreshold, time.Now)
 	return &Consumer{
-		cfg:          cfg,
-		findingsPath: findingsPath,
-		ledgerPath:   ledgerPath,
-		dlqProducer:  dlqEm,
-		findingsW:    fw,
+		cfg:         cfg,
+		ledgerPath:  ledgerPath,
+		dlqProducer: dlqEm,
 		watcher: dq.New(dq.Config{
 			Checks:   reg,
 			Findings: fw,
@@ -148,6 +144,10 @@ func (c *Consumer) Run(ctx context.Context) error {
 				m++
 			}
 			markedCnt[p] = m
+			if m == len(recs) {
+				delete(pending, p)
+				delete(markedCnt, p)
+			}
 		}
 	}
 }
