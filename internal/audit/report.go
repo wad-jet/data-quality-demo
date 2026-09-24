@@ -11,6 +11,46 @@ import (
 // dlqReasonOrder defines deterministic order for DLQ reasons in human output.
 var dlqReasonOrder = []string{"field_missing", "type_drift", "invalid_json"}
 
+// dlqTopicLine builds the "DLQ (topic): N (reasons) — <match|mismatch>" text
+// shared by all renderers. present=false when the report has no DLQTopic
+// (offline mode). mismatch=true when the topic counters diverge from the
+// offline expected (DLQ) — used for the HTML mismatch CSS class.
+func (r Report) dlqTopicLine() (full string, mismatch, present bool) {
+	if r.DLQTopic == nil {
+		return "", false, false
+	}
+	var dlqReasons []string
+	for _, reason := range dlqReasonOrder {
+		if n := r.DLQTopic.ByReason[reason]; n > 0 {
+			dlqReasons = append(dlqReasons, fmt.Sprintf("%s=%d", reason, n))
+		}
+	}
+	// Append any extra (non-deterministic-order) reasons, sorted, for determinism.
+	extra := []string{}
+	for reason, n := range r.DLQTopic.ByReason {
+		known := false
+		for _, k := range dlqReasonOrder {
+			if reason == k {
+				known = true
+				break
+			}
+		}
+		if !known && n > 0 {
+			extra = append(extra, fmt.Sprintf("%s=%d", reason, n))
+		}
+	}
+	sort.Strings(extra)
+	dlqReasons = append(dlqReasons, extra...)
+	matchStr := "совпадает с findings"
+	mismatch = false
+	if warn := CheckDLQTopic(r.DLQ, *r.DLQTopic); warn != "" {
+		matchStr = "РАСХОЖДЕНИЕ: " + warn
+		mismatch = true
+	}
+	full = fmt.Sprintf("DLQ (topic): %d (%s) — %s", r.DLQTopic.Count, strings.Join(dlqReasons, " "), matchStr)
+	return full, mismatch, true
+}
+
 // RenderHuman returns a human-readable representation of the audit report.
 // The format matches the expectations in the task-2 tests.
 func (r Report) RenderHuman() string {
@@ -36,38 +76,9 @@ func (r Report) RenderHuman() string {
 		}
 	}
 	fmt.Fprintf(&b, "DLQ (offline, schema-violations): %d (%s)\n", r.DLQ.Count, strings.Join(reasons, " "))
-	// DLQ topic line if present
-	if r.DLQTopic != nil {
-		// Build reasons string in deterministic order.
-		var dlqReasons []string
-		// deterministic part
-		for _, reason := range dlqReasonOrder {
-			if n := r.DLQTopic.ByReason[reason]; n > 0 {
-				dlqReasons = append(dlqReasons, fmt.Sprintf("%s=%d", reason, n))
-			}
-		}
-		// collect extra reasons not in deterministic order
-		extra := []string{}
-		for reason, n := range r.DLQTopic.ByReason {
-			// skip if already part of deterministic order
-			known := false
-			for _, k := range dlqReasonOrder {
-				if reason == k {
-					known = true
-					break
-				}
-			}
-			if !known && n > 0 {
-				extra = append(extra, fmt.Sprintf("%s=%d", reason, n))
-			}
-		}
-		sort.Strings(extra)
-		dlqReasons = append(dlqReasons, extra...)
-		matchStr := "совпадает с findings"
-		if warn := CheckDLQTopic(r.DLQ, *r.DLQTopic); warn != "" {
-			matchStr = fmt.Sprintf("РАСХОЖДЕНИЕ: %s", warn)
-		}
-		fmt.Fprintf(&b, "DLQ (topic): %d (%s) — %s\n", r.DLQTopic.Count, strings.Join(dlqReasons, " "), matchStr)
+	// DLQ topic line if present.
+	if full, _, present := r.dlqTopicLine(); present {
+		fmt.Fprintf(&b, "%s\n", full)
 	}
 
 	// Timeline line - concatenate bucket representations.

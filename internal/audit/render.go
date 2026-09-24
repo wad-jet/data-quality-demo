@@ -75,6 +75,9 @@ func (r Report) RenderMarkdown() string {
 		}
 	}
 	fmt.Fprintln(&b, "")
+	if full, _, present := r.dlqTopicLine(); present {
+		fmt.Fprintf(&b, "%s\n", full)
+	}
 	if len(r.Warnings) > 0 {
 		fmt.Fprintln(&b, "## Warnings")
 		for _, w := range r.Warnings {
@@ -127,6 +130,13 @@ func (r Report) RenderHTML() string {
 		}
 	}
 	fmt.Fprintln(&b, "</p>")
+	if full, mismatch, present := r.dlqTopicLine(); present {
+		cls := ""
+		if mismatch {
+			cls = " class=\"mismatch\""
+		}
+		fmt.Fprintf(&b, "<p%s>%s</p>\n", cls, full)
+	}
 	if len(r.Warnings) > 0 {
 		fmt.Fprintln(&b, "<h2>Warnings</h2><ul>")
 		for _, w := range r.Warnings {

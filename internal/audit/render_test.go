@@ -92,6 +92,36 @@ func TestRenderMarkdown(t *testing.T) {
 			t.Fatalf("markdown missing %q", want)
 		}
 	}
+	// No DLQTopic in the sample -> no topic line.
+	if strings.Contains(out, "DLQ (topic)") {
+		t.Fatalf("markdown should not have DLQ (topic) line when DLQTopic is nil")
+	}
+}
+
+// dlqTopicReport returns sampleReportFull with a DLQTopic attached.
+// match=false makes the topic count differ from the offline DLQ (mismatch).
+func dlqTopicReport(match bool) Report {
+	rep := sampleReportFull()
+	count := rep.DLQ.Count
+	if !match {
+		count += 1
+	}
+	rep.DLQTopic = &DLQTopic{Count: count, ByReason: rep.DLQ.ByReason}
+	return rep
+}
+
+func TestRenderMarkdownDLQTopic(t *testing.T) {
+	matchOut := dlqTopicReport(true).RenderMarkdown()
+	if !strings.Contains(matchOut, "DLQ (topic):") {
+		t.Fatalf("markdown match case missing DLQ (topic) line: %s", matchOut)
+	}
+	if !strings.Contains(matchOut, "совпадает с findings") {
+		t.Fatalf("markdown match case missing match indicator: %s", matchOut)
+	}
+	mismatchOut := dlqTopicReport(false).RenderMarkdown()
+	if !strings.Contains(mismatchOut, "РАСХОЖДЕНИЕ") {
+		t.Fatalf("markdown mismatch case missing mismatch indicator: %s", mismatchOut)
+	}
 }
 
 func TestRenderMarkdownTimeline(t *testing.T) {
@@ -121,5 +151,30 @@ func TestRenderHTML(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("html missing %q", want)
 		}
+	}
+	// No DLQTopic in the sample -> no topic line, no mismatch class on a topic <p>.
+	if strings.Contains(out, "DLQ (topic)") {
+		t.Fatalf("html should not have DLQ (topic) line when DLQTopic is nil")
+	}
+}
+
+func TestRenderHTMLDLQTopic(t *testing.T) {
+	matchOut := dlqTopicReport(true).RenderHTML()
+	if !strings.Contains(matchOut, "DLQ (topic):") {
+		t.Fatalf("html match case missing DLQ (topic) line: %s", matchOut)
+	}
+	if !strings.Contains(matchOut, "совпадает с findings") {
+		t.Fatalf("html match case missing match indicator: %s", matchOut)
+	}
+	// Match case must NOT be marked as mismatch.
+	if strings.Contains(matchOut, `<p class="mismatch">DLQ (topic)`) {
+		t.Fatalf("html match case should not carry mismatch class: %s", matchOut)
+	}
+	mismatchOut := dlqTopicReport(false).RenderHTML()
+	if !strings.Contains(mismatchOut, "РАСХОЖДЕНИЕ") {
+		t.Fatalf("html mismatch case missing mismatch indicator: %s", mismatchOut)
+	}
+	if !strings.Contains(mismatchOut, `<p class="mismatch">DLQ (topic)`) {
+		t.Fatalf("html mismatch case should carry mismatch class: %s", mismatchOut)
 	}
 }
