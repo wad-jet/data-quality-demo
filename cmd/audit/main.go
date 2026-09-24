@@ -79,7 +79,6 @@ func runAudit(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintf(stderr, "audit: render html: %v\n", err)
 				return 1
 			}
-
 		default: // text
 			rendered = rep.RenderHuman()
 		}

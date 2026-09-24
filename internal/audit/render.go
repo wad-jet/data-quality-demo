@@ -258,9 +258,12 @@ func RenderHTML(r Report) (string, error) {
 			if i > 0 {
 				fmt.Fprintf(&b, "<p class=\"tl-gap\">разрыв %dс — как правило, дефект «лаг»: события со «старой» отметкой времени</p>\n", c.StartS-clusters[i-1].EndS)
 			}
-			width := 100 * c.Total / maxSum
-			if width < 1 {
-				width = 1
+			width := 1
+			if maxSum > 0 {
+				width = 100 * c.Total / maxSum
+				if width < 1 {
+					width = 1
+				}
 			}
 			fmt.Fprintf(&b, "<p class=\"tl-row\"><span>%s–%s (время события)</span><span class=\"tl-bar-track\"><span class=\"tl-bar\" style=\"width: %d%%\"></span></span><span>%d</span></p>\n",
 				utcHMS(c.StartS), utcHMS(c.EndS), width, c.Total)

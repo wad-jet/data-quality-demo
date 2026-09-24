@@ -223,6 +223,18 @@ func TestRenderHTMLTimeline(t *testing.T) {
 	}
 }
 
+func TestRenderHTMLZeroCountTimeline(t *testing.T) {
+	r := sampleReportFull()
+	r.Timeline = []TimelineBucket{{BucketS: 100, Count: 0}, {BucketS: 101, Count: 0}}
+	html, err := RenderHTML(r) // maxSum == 0 — не должно паниковать
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(html, `style="width: 1%"`) {
+		t.Fatalf("zero-count bar width: %s", html)
+	}
+}
+
 func TestRenderMarkdownEmptyReport(t *testing.T) {
 	r := Report{
 		Overall: Overall{}, // всё нулевое, пустой таймлайн
