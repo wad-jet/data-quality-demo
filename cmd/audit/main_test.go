@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,5 +140,33 @@ func TestRunAudit(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestRunAuditDLQDeadBroker verifies that a dead bootstrap causes dlq error exit.
+func TestRunAuditDLQDeadBroker(t *testing.T) {
+	dir := t.TempDir()
+	ledgerPath := filepath.Join(dir, "ledger.jsonl")
+	findingsPath := filepath.Join(dir, "findings.jsonl")
+	if err := os.WriteFile(ledgerPath, []byte{}, 0o644); err != nil {
+		t.Fatalf("write ledger: %v", err)
+	}
+	if err := os.WriteFile(findingsPath, []byte{}, 0o644); err != nil {
+		t.Fatalf("write findings: %v", err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr := ln.Addr().String()
+	ln.Close()
+	args := []string{"-ledger", ledgerPath, "-findings", findingsPath, "-dlq-topic", "some.topic", "-bootstrap", addr}
+	var outBuf, errBuf bytes.Buffer
+	code := runAudit(args, &outBuf, &errBuf)
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d", code)
+	}
+	if !strings.Contains(errBuf.String(), "audit: dlq:") {
+		t.Fatalf("stderr missing dlq error, got %q", errBuf.String())
 	}
 }

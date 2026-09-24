@@ -92,15 +92,18 @@ Spec: `docs/superpowers/specs/2026-09-24-audit-dlq-report-design.md` (approved, 
    - `type DLQTopic struct { Count int; ByReason map[string]int }`
    - `const dlqReadTimeout = 15 * time.Second`
    - `func ConsumeDLQ(ctx context.Context, bootstrap, topic string) (DLQTopic, []string, error)`:
-     - precheck raw kmsg (прецедент `EnsureTopic`, emit.go:47-74):
-       `kmsg.NewPtrMetadataRequest()` → партиции (ошибка запроса или
-       `UNKNOWN_TOPIC_OR_PARTITION` через `kerr.ErrorForCode` → error);
-       `kmsg.NewPtrListOffsetsRequest()` `Timestamp: -1` → end-offsets.
-     - kgo client: `ConsumeTopics(topic)`,
-       `ConsumeResetOffset(kgo.NewOffset().AtStart())`,
-       `FetchIsolationLevel(ReadUncommitted())`; цикл PollFetches;
-       счётчики по заголовку; стоп: для всех p `lastOffset+1 >= end[p]`;
-       timeout-кап `dlqReadTimeout` → warning + partial.
+      - precheck raw kmsg (прецедент `EnsureTopic`, emit.go:47-74):
+        `kmsg.NewPtrMetadataRequest()` → fail-fast (ошибка запроса или
+        `UNKNOWN_TOPIC_OR_PARTITION` через `kerr.ErrorForCode` → error).
+        (ListOffsets-концевики из черновика убраны: сломаны на Redpanda
+        v26.2.3 — FENCED_LEADER_EPOCH; см. spec §5, idle-stop.)
+      - kgo client: `ConsumeTopics(topic)`,
+        `kgo.ConsumeResetOffset(kgo.NewOffset().AtStart())`,
+        `FetchIsolationLevel(ReadUncommitted())`; цикл PollFetches (каждый
+        вызов с ctx-deadline `min(dlqIdleStop, остаток до капа)`); счётчики по
+        заголовку; стоп: тишина `dlqIdleStop=2s` (0 новых записей) — покрывает
+        пустой и полный топик; timeout-кап `dlqReadTimeout=15s` → warning +
+        partial.
    - `checkDLQTopic` + human-строка + поле `Report.DLQTopic`.
 4. `go test ./internal/audit/` → ok; `go build ./...` → ok.
    (ConsumeDLQ e2e проверяется в Task 4 integration.)

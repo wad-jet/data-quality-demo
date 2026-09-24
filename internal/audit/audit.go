@@ -77,7 +77,7 @@ type Overall struct {
 }
 
 type Report struct {
-	DLQTopic *DLQTopic `json:"dlq_topic,omitempty"`
+	DLQTopic      *DLQTopic        `json:"dlq_topic,omitempty"`
 	GeneratedAt   time.Time        `json:"generated_at"`
 	Inputs        Inputs           `json:"inputs"`
 	Overall       Overall          `json:"overall"`

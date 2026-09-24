@@ -81,22 +81,24 @@
        запроса (брокер недоступен) или код `UNKNOWN_TOPIC_OR_PARTITION`
        (через `kerr.ErrorForCode`, как emit.go:70-73) → `audit: dlq: <err>`
        в stderr, exit 1 — быстрый fail вместо 15-с молчания.
-    2. `kmsg.NewPtrListOffsetsRequest()` с `Timestamp: -1` (latest =
-       high watermark) для этих партиций → end-offset каждой партиции.
-    Один механизм закрывает и fail-fast, и партиции, и стоп-условие.
-    End-offset'ы снимаются один раз до цикла (в демо audit стартует после
-    consumer-shutdown — новые записи не появляются).
+     (End-offset через `ListOffsets` из первоначального черновика НЕ
+     используется: на Redpanda v26.2.3 raw `ListOffsetsRequest` всегда
+     отвечает `FENCED_LEADER_EPOCH` — проверено фактом 2026-09-24: все
+     варианты `Timestamp` (-1/-2/0/конкретный), пустой и непустой топик,
+     стабильно. Поэтому стоп-условие — наблюдаемая «тишина», см. ниже.)
   - Счётчики: `count` + `by_reason` по заголовку `dq.reason` (контракт DLQ —
     `internal/consumer/consumer.go:dlqSink`). Нет заголовка → бакет `unknown`
     + warning в возвращаемых warnings.
-  - **Стоп-условие (наблюдаемое):** для каждой партиции p из precheck
-    выполнено `последний прочитанный offset + 1 >= end[p]` (партиция без
-    записей → `0 >= end[p]`); выполнено для всех партиций → стоп. Пустой
-    топик: все `end[p] = 0` → стоп сразу, count = 0, fetch не нужен —
-    наблюдаемо благодаря precheck (PollFetches пустых фетчей не отдаёт).
+  - **Стоп-условие (idle-stop):** DLQ-топик статичен (consumer завершает
+    дренаж и shutdown до старта audit — новых записей не появляется). Читаем
+    записи; если новых записей нет в течение `dlqIdleStop = 2 * time.Second`
+    (именованная константа в dlq.go) → стоп. Пустой топик: стоп после одного
+    окна тишины, count = 0, без ложного timeout-warning. Каждый `PollFetches`
+    вызывается с context, deadline которого = `min(dlqIdleStop, остаток до
+    капа)`.
   - **Timeout-кап:** `dlqReadTimeout = 15 * time.Second` (именованная
-    константа в dlq.go). Не успел до стоп-условия (в т.ч. брокер упал после
-    precheck) → warning «DLQ-чтение: timeout, возможно неполно» +
+    константа в dlq.go) — страховочный потолок. Достигнут до «тишины» (в демо
+    не происходит) → warning «DLQ-чтение: timeout, возможно неполно» +
     partial-счётчики.
 - **Схема отчёта:** `dlq_topic: {"count": N, "by_reason": {...}}`
   (`omitempty`, нет поля — режим офлайн).

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -27,6 +28,12 @@ func runAudit(args []string, stdout, stderr io.Writer) int {
 	fromPath := fs.String("from", "", "path to audit JSON report (render-режим)")
 	format := fs.String("format", "text", "render format for -from: text|md|html")
 	outPath := fs.String("out", "", "path to write output (build: JSON report, render: rendered file)")
+	dlqTopic := fs.String("dlq-topic", "", "DLQ topic name (optional, build mode only)")
+	bootstrapDefault := os.Getenv("DQ_BOOTSTRAP")
+	if bootstrapDefault == "" {
+		bootstrapDefault = "localhost:9092"
+	}
+	bootstrap := fs.String("bootstrap", bootstrapDefault, "Kafka bootstrap server (optional, build mode only)")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -81,6 +88,19 @@ func runAudit(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "audit: %v\n", err)
 		return 1
+	}
+	// DLQ integration (build mode only)
+	if *dlqTopic != "" {
+		actual, warns, err := audit.ConsumeDLQ(context.Background(), *bootstrap, *dlqTopic)
+		if err != nil {
+			fmt.Fprintf(stderr, "audit: dlq: %v\n", err)
+			return 1
+		}
+		rep.DLQTopic = &actual
+		rep.Warnings = append(rep.Warnings, warns...)
+		if w := audit.CheckDLQTopic(rep.DLQ, actual); w != "" {
+			rep.Warnings = append(rep.Warnings, w)
+		}
 	}
 	for _, w := range rep.Warnings {
 		fmt.Fprintf(stderr, "audit: warning: %s\n", w)

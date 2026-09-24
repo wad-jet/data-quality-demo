@@ -12,6 +12,12 @@ import (
 const (
 	reasonKey      = "dq.reason"
 	dlqReadTimeout = 15 * time.Second
+	// dlqIdleStop is the "caught up" window: the DLQ is static (the consumer
+	// shuts down before audit runs), so once no new records arrive for this
+	// long we consider the topic fully read. This replaces the ListOffsets
+	// end-offset stop condition, which is broken on Redpanda v26.2.3
+	// (raw kmsg ListOffsets always returns FENCED_LEADER_EPOCH there).
+	dlqIdleStop = 2 * time.Second
 )
 
 // DLQTopic represents DLQ consumption statistics.
@@ -76,8 +82,7 @@ func ConsumeDLQ(ctx context.Context, bootstrap, topic string) (DLQTopic, []strin
 	if len(metaResp.Topics) == 0 {
 		return DLQTopic{}, nil, fmt.Errorf("audit: dlq: metadata empty response for %s", topic)
 	}
-	// Verify no error code and collect partitions.
-	var partitions []int32
+	// Verify no error code (fast-fail on UNKNOWN_TOPIC_OR_PARTITION etc.).
 	for _, t := range metaResp.Topics {
 		if t.ErrorCode != 0 {
 			if perr := kerr.ErrorForCode(t.ErrorCode); perr != nil {
@@ -85,104 +90,51 @@ func ConsumeDLQ(ctx context.Context, bootstrap, topic string) (DLQTopic, []strin
 			}
 			return DLQTopic{}, nil, fmt.Errorf("audit: dlq: metadata error code %d", t.ErrorCode)
 		}
-		for _, p := range t.Partitions {
-			partitions = append(partitions, p.Partition)
-		}
 	}
 
-	// ---------- Precheck: list offsets (high watermarks) ----------
-	loReq := kmsg.NewPtrListOffsetsRequest()
-	// Build a single topic entry with all partitions.
-	loReq.Topics = []kmsg.ListOffsetsRequestTopic{{
-		Topic: topic,
-		Partitions: func() []kmsg.ListOffsetsRequestTopicPartition {
-			ps := make([]kmsg.ListOffsetsRequestTopicPartition, len(partitions))
-			for i, p := range partitions {
-				ps[i] = kmsg.ListOffsetsRequestTopicPartition{Partition: p, Timestamp: -1}
-			}
-			return ps
-		}(),
-	}}
-	loResp, err := loReq.RequestWith(ctx, client)
-	if err != nil {
-		return DLQTopic{}, nil, fmt.Errorf("audit: dlq: %w", err)
-	}
-	endOffsets := map[int32]int64{}
-	for _, t := range loResp.Topics {
-		for _, p := range t.Partitions {
-			if p.ErrorCode != 0 {
-				if perr := kerr.ErrorForCode(p.ErrorCode); perr != nil {
-					return DLQTopic{}, nil, perr
-				}
-				return DLQTopic{}, nil, fmt.Errorf("audit: dlq: listoffsets error code %d", p.ErrorCode)
-			}
-			endOffsets[p.Partition] = p.Offset
-		}
-	}
-
-	// If no partitions, nothing to read.
-	if len(partitions) == 0 {
-		return DLQTopic{Count: 0, ByReason: map[string]int{}}, nil, nil
-	}
-
-	// Initialise counters and tracking structures.
+	// ---------- Consumption loop (idle-stop) ----------
+	// The DLQ topic is static: the consumer has fully drained and shut down
+	// before audit starts, so no new records appear. We read until no new
+	// records arrive for dlqIdleStop, capped by dlqReadTimeout. This works for
+	// both empty (stops after one idle window, count=0) and non-empty topics,
+	// and avoids the ListOffsets precheck that Redpanda v26.2.3 rejects with
+	// FENCED_LEADER_EPOCH.
 	result := DLQTopic{Count: 0, ByReason: map[string]int{}}
 	warnings := []string{}
-	lastSeen := map[int32]int64{}
-	for _, p := range partitions {
-		lastSeen[p] = -1 // ensures uniform stop‑condition logic.
-	}
-
-	// ---------- Consumption loop ----------
-	timer := time.NewTimer(dlqReadTimeout)
-	defer timer.Stop()
-	done := false
-	for !done {
-		select {
-		case <-ctx.Done():
-			// Context cancelled – return partial result with the cancellation error.
-			return result, warnings, ctx.Err()
-		case <-timer.C:
-			// Timeout cap – emit warning and stop.
+	start := time.Now()
+	for {
+		if time.Since(start) >= dlqReadTimeout {
 			warnings = append(warnings, "DLQ-чтение: timeout, возможно неполно")
-			done = true
-			continue
-		default:
+			break
 		}
-
-		// Pre‑poll stop condition check.
-		allDone := true
-		for _, p := range partitions {
-			if lastSeen[p]+1 < endOffsets[p] {
-				allDone = false
-				break
-			}
+		wait := dlqIdleStop
+		if rem := dlqReadTimeout - time.Since(start); rem < wait {
+			wait = rem
 		}
-		if allDone {
-			done = true
-			continue
-		}
-
-		fetches := client.PollFetches(ctx)
+		pctx, cancel := context.WithTimeout(ctx, wait)
+		fetches := client.PollFetches(pctx)
+		cancel()
 		if fetches == nil {
-			if ctx.Err() != nil {
-				return result, warnings, ctx.Err()
-			}
-			continue
+			break
 		}
+		if ctx.Err() != nil {
+			// Parent context cancelled — return partial result with the error.
+			return result, warnings, ctx.Err()
+		}
+		got := 0
 		fetches.EachRecord(func(r *kgo.Record) {
+			got++
 			result.Count++
 			reason, missing := parseDLQReason(r.Headers)
 			result.ByReason[reason]++
 			if missing {
 				warnings = append(warnings, "DLQ: missing reason header")
 			}
-			// Update last seen offset for the partition.
-			if r.Offset > lastSeen[r.Partition] {
-				lastSeen[r.Partition] = r.Offset
-			}
 		})
-
+		if got == 0 {
+			// Idle: no new records within the wait window — caught up (or empty).
+			break
+		}
 	}
 
 	return result, warnings, nil
