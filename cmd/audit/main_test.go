@@ -44,7 +44,10 @@ func TestRunAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render md: %v", err)
 	}
-	html := rep.RenderHTML()
+	html, err := audit.RenderHTML(rep)
+	if err != nil {
+		t.Fatalf("render html: %v", err)
+	}
 	human := rep.RenderHuman()
 
 	outMd := filepath.Join(dir, "report.md")

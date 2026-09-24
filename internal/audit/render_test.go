@@ -163,47 +163,63 @@ func TestRenderMarkdownTimeline(t *testing.T) {
 	}
 }
 
-func TestRenderHTMLTimeline(t *testing.T) {
-	out := sampleReportFull().RenderHTML()
-	if !strings.Contains(out, "<h2>Timeline</h2>") {
-		t.Fatalf("html missing Timeline header")
-	}
-	if !strings.Contains(out, "t=1758621600:1") {
-		t.Fatalf("html missing timeline bucket")
-	}
-}
-
 func TestRenderHTML(t *testing.T) {
-	out := sampleReportFull().RenderHTML()
-	for _, want := range []string{"<!doctype html>", "<h1>Audit report</h1>", "<table>", "<th>Recall</th>", "DLQ (offline, schema-violations): 1", ".mismatch"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("html missing %q", want)
-		}
+	html, err := RenderHTML(sampleReportFull()) // problems: dup recall + warning
+	if err != nil {
+		t.Fatalf("render: %v", err)
 	}
-	// No DLQTopic in the sample -> no topic line, no mismatch class on a topic <p>.
-	if strings.Contains(out, "DLQ (topic)") {
-		t.Fatalf("html should not have DLQ (topic) line when DLQTopic is nil")
+	for _, m := range []string{
+		"<h1>Отчёт о качестве данных (audit)</h1>",
+		`class="verdict-bad"`,
+		"<h2>Что проверяли</h2>",
+		"<h2>Метрики простыми словами</h2>",
+		"<h2>Дефекты по видам</h2>",
+		"заказ без обязательного поля",
+		`class="num metric-bad"`,  // dup: Caught 1 < Total 2
+		`class="num metric-ok"`,   // missing: recall 100%
+		`class="num metric-warn"`, // dup: precision 50%
+		"<h2>DLQ — очередь проблемных сообщений</h2>",
+		"Фактически: не считалось",
+		"Как проверять отчёт за 10 секунд",
+	} {
+		if !strings.Contains(html, m) {
+			t.Fatalf("HTML missing %q", m)
+		}
 	}
 }
 
 func TestRenderHTMLDLQTopic(t *testing.T) {
-	matchOut := dlqTopicReport(true).RenderHTML()
-	if !strings.Contains(matchOut, "DLQ (topic):") {
-		t.Fatalf("html match case missing DLQ (topic) line: %s", matchOut)
+	match, err := RenderHTML(dlqTopicReport(true))
+	if err != nil {
+		t.Fatalf("render: %v", err)
 	}
-	if !strings.Contains(matchOut, "совпадает с findings") {
-		t.Fatalf("html match case missing match indicator: %s", matchOut)
+	if !strings.Contains(match, "Статус: совпадает") {
+		t.Fatalf("match: %s", match)
 	}
-	// Match case must NOT be marked as mismatch.
-	if strings.Contains(matchOut, `<p class="mismatch">DLQ (topic)`) {
-		t.Fatalf("html match case should not carry mismatch class: %s", matchOut)
+	mism, err := RenderHTML(dlqTopicReport(false))
+	if err != nil {
+		t.Fatalf("render: %v", err)
 	}
-	mismatchOut := dlqTopicReport(false).RenderHTML()
-	if !strings.Contains(mismatchOut, "РАСХОЖДЕНИЕ") {
-		t.Fatalf("html mismatch case missing mismatch indicator: %s", mismatchOut)
+	if !strings.Contains(mism, "Статус: РАСХОЖДЕНИЕ") ||
+		!strings.Contains(mism, `class="metric-bad mismatch"`) {
+		t.Fatalf("mismatch: %s", mism)
 	}
-	if !strings.Contains(mismatchOut, `<p class="mismatch">DLQ (topic)`) {
-		t.Fatalf("html mismatch case should carry mismatch class: %s", mismatchOut)
+}
+
+func TestRenderHTMLTimeline(t *testing.T) {
+	r := sampleReportFull()
+	r.Timeline = []TimelineBucket{{BucketS: 100, Count: 3}, {BucketS: 200, Count: 5}}
+	html, err := RenderHTML(r)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(html, "<h2>Таймлайн</h2>") ||
+		!strings.Contains(html, `class="tl-bar"`) ||
+		!strings.Contains(html, "разрыв 100с") {
+		t.Fatalf("timeline: %s", html)
+	}
+	if !strings.Contains(html, `style="width: 60%"`) || !strings.Contains(html, `style="width: 100%"`) {
+		t.Fatalf("bar widths (60%%, 100%%) missing: %s", html)
 	}
 }
 

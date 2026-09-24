@@ -147,62 +147,134 @@ func utcHMS(bucketS int64) string {
 }
 
 // RenderHTML renders the report as a self-contained HTML document.
-func (r Report) RenderHTML() string {
+
+const htmlStyle = `
+body{font-family:system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#222}
+table{border-collapse:collapse;margin:12px 0}
+th,td{border:1px solid #ccc;padding:4px 10px;text-align:left}
+td.num,th.num{text-align:right}
+.verdict-ok{background:#e6f4ea;color:#0a7d2e;padding:10px;border-radius:6px;font-weight:600}
+.verdict-bad{background:#fdecea;color:#c0392b;padding:10px;border-radius:6px;font-weight:600}
+.metric-ok{color:#0a7d2e;font-weight:600}
+.metric-warn{color:#a06b00;font-weight:600}
+.metric-bad{color:#c0392b;font-weight:600}
+.mismatch{color:#c0392b;font-weight:600}
+.tl-row{display:flex;align-items:center;gap:8px;margin:2px 0;font-size:13px}
+.tl-bar-track{flex:0 0 40%;background:#f0f0f0;border-radius:3px}
+.tl-bar{height:10px;background:#4a7ebb;border-radius:3px}
+.tl-gap{color:#666;font-size:12px;margin:6px 0}
+`
+
+// RenderHTML — самодостаточный HTML-отчёт с цветовыми маркерами (spec §4, §6).
+func RenderHTML(r Report) (string, error) {
 	var b strings.Builder
-	fmt.Fprintln(&b, "<!doctype html>")
-	fmt.Fprintln(&b, "<html><head><meta charset=\"utf-8\"><title>Audit report</title><style>")
-	fmt.Fprintln(&b, ".mismatch { background-color: #ffdddd; } table, th, td { border: 1px solid #ccc; border-collapse: collapse; padding: 4px; }")
-	fmt.Fprintln(&b, "</style></head><body>")
-	fmt.Fprintln(&b, "<h1>Audit report</h1>")
-	fmt.Fprintf(&b, "<p>Generated at: %s</p>\n", r.GeneratedAt.Format(time.RFC3339))
-	fmt.Fprintf(&b, "<p>Ledger entries: %d</p>\n", r.LedgerEntries)
-	fmt.Fprintf(&b, "<p>Inputs: ledger=%s, findings=%s</p>\n", r.Inputs.Ledger, r.Inputs.Findings)
-	fmt.Fprintln(&b, "<h2>Overall</h2>")
-	fmt.Fprintf(&b, "<p>Recall: %.4f, Precision: %.4f, Caught: %d, Findings: %d, FP: %d</p>\n",
-		r.Overall.Recall, r.Overall.Precision, r.Overall.Caught, r.Overall.Findings, r.Overall.FalsePos)
-	fmt.Fprintln(&b, "<h2>Per tag</h2>")
-	fmt.Fprintln(&b, "<table><thead><tr><th>Tag</th><th>Check</th><th>Total</th><th>Caught</th><th>Recall</th><th>Findings</th><th>FP</th><th>Precision</th></tr></thead><tbody>")
-	for _, m := range r.PerTag {
-		fmt.Fprintf(&b, "<tr><td>%s</td><td>%s</td><td>%d</td><td>%d</td><td>%.1f%%</td><td>%d</td><td>%d</td><td>%.1f%%</td></tr>\n",
-			m.Tag, m.Check, m.Total, m.Caught, m.Recall*100, m.Findings, m.FalsePos, m.Precision*100)
+	b.WriteString("<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Отчёт о качестве данных</title><style>")
+	b.WriteString(htmlStyle)
+	b.WriteString("</style></head><body>\n")
+	b.WriteString("<h1>Отчёт о качестве данных (audit)</h1>\n")
+
+	healthy, problems := Verdict(r)
+	if healthy {
+		b.WriteString("<p class=\"verdict-ok\">Вердикт: проблем не обнаружено.</p>\n<p>")
+		if r.DLQTopic != nil {
+			b.WriteString("Все заложенные дефекты найдены; сверка DLQ — совпадает.</p>\n")
+		} else {
+			b.WriteString("Все заложенные дефекты найдены.</p>\n")
+		}
+	} else {
+		fmt.Fprintf(&b, "<p class=\"verdict-bad\">Вердикт: обнаружены проблемы (%d).</p>\n<ul>\n", len(problems))
+		for _, p := range problems {
+			fmt.Fprintf(&b, "<li>%s</li>\n", p)
+		}
+		b.WriteString("</ul>\n")
 	}
-	fmt.Fprintln(&b, "</tbody></table>")
-	fmt.Fprintln(&b, "<h2>DLQ</h2>")
-	fmt.Fprintf(&b, "<p>DLQ (offline, schema-violations): %d", r.DLQ.Count)
-	if len(r.DLQ.ByReason) > 0 {
-		var parts []string
-		for _, reason := range dlqReasonOrder {
-			if n := r.DLQ.ByReason[reason]; n > 0 {
-				parts = append(parts, fmt.Sprintf("%s=%d", reason, n))
+
+	b.WriteString("<h2>Что проверяли</h2>\n<p>")
+	fmt.Fprintf(&b, "Producer отправил %d событий, из них с заложенными дефектами: %d. Инспектор нашёл %d записей: %d — реальные дефекты, %d — ложные срабатывания.</p>\n",
+		r.LedgerEntries, r.Overall.TotalDefects, r.Overall.Findings, r.Overall.Caught, r.Overall.FalsePos)
+
+	b.WriteString("<h2>Метрики простыми словами</h2>\n<table>\n")
+	b.WriteString("<tr><th>Метрика</th><th>Значение</th><th>Что это значит</th></tr>\n")
+	fmt.Fprintf(&b, "<tr><td>Recall</td><td>%d/%d (%s)</td><td>Доля заложенных дефектов, которые удалось найти</td></tr>\n",
+		r.Overall.Caught, r.Overall.TotalDefects, Pct(r.Overall.Recall))
+	fmt.Fprintf(&b, "<tr><td>Precision</td><td>%d/%d (%s)</td><td>Доля находок, которые подтвердились; остальные — ложные срабатывания</td></tr>\n",
+		r.Overall.Findings-r.Overall.FalsePos, r.Overall.Findings, Pct(r.Overall.Precision))
+	b.WriteString("</table>\n")
+
+	b.WriteString("<h2>Дефекты по видам</h2>\n<table>\n")
+	b.WriteString("<tr><th>Дефект</th><th>Что это</th><th class=\"num\">Заложено</th><th class=\"num\">Найдено</th><th class=\"num\">Recall</th><th class=\"num\">Записей</th><th class=\"num\">Ложных</th><th class=\"num\">Precision</th></tr>\n")
+	for _, tm := range r.PerTag {
+		recall, prec := "—", "—"
+		recallCls, precCls := "", ""
+		if tm.Total > 0 {
+			recall = Pct(tm.Recall)
+			if tm.Caught == tm.Total {
+				recallCls = " metric-ok"
+			} else {
+				recallCls = " metric-bad"
 			}
 		}
-		if len(parts) > 0 {
-			fmt.Fprintf(&b, " (%s)", strings.Join(parts, " "))
+		if tm.Findings > 0 {
+			prec = Pct(tm.Precision)
+			if tm.Precision < 1.0 {
+				precCls = " metric-warn"
+			}
+		}
+		fmt.Fprintf(&b, "<tr><td>%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num%s\">%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num%s\">%s</td></tr>\n",
+			tm.Tag, TagDescription(tm.Tag), tm.Total, tm.Caught, recallCls, recall, tm.Findings, tm.FalsePos, precCls, prec)
+	}
+	b.WriteString("</table>\n")
+	for _, tm := range r.PerTag {
+		if (tm.Tag == "ooo" || tm.Tag == "lag") && tm.FalsePos > 0 {
+			b.WriteString("<p>«Старое» событие (лаг) выглядит и как «не по порядку» — одна причина, две записи; это ожидаемое поведение демо, а не ошибка.</p>\n")
+			break
 		}
 	}
-	fmt.Fprintln(&b, "</p>")
-	if full, mismatch, present := r.dlqTopicLine(); present {
-		cls := ""
-		if mismatch {
-			cls = " class=\"mismatch\""
+
+	b.WriteString("<h2>DLQ — очередь проблемных сообщений</h2>\n<p>")
+	fmt.Fprintf(&b, "Должно быть: %d (по находкам инспектора, offline)<br>\n", r.DLQ.Count)
+	if r.DLQTopic != nil {
+		fmt.Fprintf(&b, "Фактически: %d (прочитано из брокера)<br>\n", r.DLQTopic.Count)
+		if m := CheckDLQTopic(r.DLQ, *r.DLQTopic); m == "" {
+			b.WriteString("<span class=\"metric-ok\">Статус: совпадает</span>")
+		} else {
+			fmt.Fprintf(&b, "<span class=\"metric-bad mismatch\">Статус: РАСХОЖДЕНИЕ — %s</span>", strings.TrimPrefix(m, "DLQ-сверка: "))
 		}
-		fmt.Fprintf(&b, "<p%s>%s</p>\n", cls, full)
+	} else {
+		b.WriteString("Фактически: не считалось (требуется запущенный брокер и флаг <code>-dlq-topic</code>)")
 	}
-	if len(r.Warnings) > 0 {
-		fmt.Fprintln(&b, "<h2>Warnings</h2><ul>")
-		for _, w := range r.Warnings {
-			fmt.Fprintf(&b, "<li>%s</li>", w)
-		}
-		fmt.Fprintln(&b, "</ul>")
-	}
+	b.WriteString("</p>\n")
+
 	if len(r.Timeline) > 0 {
-		fmt.Fprintln(&b, "<h2>Timeline</h2>")
-		var parts []string
-		for _, bk := range r.Timeline {
-			parts = append(parts, fmt.Sprintf("t=%d:%d", bk.BucketS, bk.Count))
+		b.WriteString("<h2>Таймлайн</h2>\n")
+		clusters := TimelineClusters(r.Timeline)
+		maxSum := 0
+		for _, c := range clusters {
+			if c.Total > maxSum {
+				maxSum = c.Total
+			}
 		}
-		fmt.Fprintf(&b, "<p>Timeline (1s buckets): %s</p>\n", strings.Join(parts, " "))
+		for i, c := range clusters {
+			if i > 0 {
+				fmt.Fprintf(&b, "<p class=\"tl-gap\">разрыв %dс — как правило, дефект «лаг»: события со «старой» отметкой времени</p>\n", c.StartS-clusters[i-1].EndS)
+			}
+			width := 100 * c.Total / maxSum
+			if width < 1 {
+				width = 1
+			}
+			fmt.Fprintf(&b, "<p class=\"tl-row\"><span>%s–%s (время события)</span><span class=\"tl-bar-track\"><span class=\"tl-bar\" style=\"width: %d%%\"></span></span><span>%d</span></p>\n",
+				utcHMS(c.StartS), utcHMS(c.EndS), width, c.Total)
+		}
 	}
-	fmt.Fprintln(&b, "</body></html>")
-	return b.String()
+
+	b.WriteString("<h2>Как проверять отчёт за 10 секунд</h2>\n<ol>\n")
+	b.WriteString("<li>Recall = 100% по всем видам? — значит, ни один заложенный дефект не просочился.</li>\n")
+	b.WriteString("<li>DLQ: «совпадает»? — значит, в очереди проблемных сообщений ничего не потеряно.</li>\n")
+	b.WriteString("<li>Precision ниже 100% у ooo/lag — это ожидаемо (двойные срабатывания); у остальных видов — 100%.</li>\n")
+	b.WriteString("<li>Вердикт в шапке сводит всё в одну строку.</li>\n</ol>\n")
+
+	fmt.Fprintf(&b, "<hr><p><small>Сгенерировано: %s · Данные: %s, %s<br>Машиночитаемая версия: <code>audit-report.json</code>; формат для специалистов: <code>-format text</code></small></p>\n",
+		r.GeneratedAt.UTC().Format("2006-01-02 15:04 (UTC)"), r.Inputs.Ledger, r.Inputs.Findings)
+	b.WriteString("</body></html>\n")
+	return b.String(), nil
 }

@@ -74,7 +74,11 @@ func runAudit(args []string, stdout, stderr io.Writer) int {
 				return 1
 			}
 		case "html":
-			rendered = rep.RenderHTML()
+			rendered, err = audit.RenderHTML(rep)
+			if err != nil {
+				fmt.Fprintf(stderr, "audit: render html: %v\n", err)
+				return 1
+			}
 
 		default: // text
 			rendered = rep.RenderHuman()
