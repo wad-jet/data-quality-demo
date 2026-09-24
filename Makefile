@@ -17,8 +17,8 @@ demo:
 	trap 'echo "[demo] interrupted - shutting down broker..."; cleanup; trap - EXIT; exit 143' TERM; \
 	trap 'cleanup' EXIT; \
 	set -e; \
-	echo "[demo] resetting demo artifacts (rm -f ledger.jsonl findings.jsonl producer-findings.jsonl)..."; \
-	rm -f ledger.jsonl findings.jsonl producer-findings.jsonl; \
+	echo "[demo] resetting demo artifacts (rm -f ledger.jsonl findings.jsonl producer-findings.jsonl audit-report.json)..."; \
+	rm -f ledger.jsonl findings.jsonl producer-findings.jsonl audit-report.json; \
 	echo "[demo] starting broker (docker compose up -d)..."; \
 	docker compose up -d; \
 	echo "[demo] waiting for broker at $(BROKER_HOST):$(BROKER_PORT) (up to $(BROKER_TIMEOUT)s)..."; \
@@ -37,8 +37,10 @@ demo:
 	./bin/producer -count 1000 -rate 200 -seed 42 -ledger ledger.jsonl; \
 	echo "[demo] running consumer (-stop 1000 -ledger ledger.jsonl -findings findings.jsonl)..."; \
 	./bin/consumer -stop 1000 -ledger ledger.jsonl -findings findings.jsonl; \
+	echo "[demo] running audit (-dlq-topic dq.orders.dlq -out audit-report.json)..."; \
+	./bin/audit -ledger ledger.jsonl -findings findings.jsonl -dlq-topic dq.orders.dlq -out audit-report.json; \
 	echo ""; \
-	echo "[demo] DONE. Full report above; findings written to: $(CURDIR)/findings.jsonl"
+	echo "[demo] DONE. Report: $(CURDIR)/audit-report.json; findings: $(CURDIR)/findings.jsonl"
 
 # Broker only: start
 broker-up:
