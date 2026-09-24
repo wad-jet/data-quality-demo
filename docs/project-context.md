@@ -40,8 +40,10 @@ findings (JSONL) + DLQ + агрегат с caught/total**; фоновый DQ-и�
   checks, DLQ (`dq.orders.dlq`) для schema-violations, findings JSONL, агрегат
   в stdout (caught/total по ledger); «коммит только обработанное»
   (franz-go marks-семантика, at-least-once).
-- `cmd/audit` — оффлайн-аудит: precision/recall по тегам, DLQ по причинам,
-  таймлайн (ledger + findings).
+- `cmd/audit` — аудит: precision/recall по тегам, DLQ по причинам, таймлайн
+  (ledger + findings). Режимы: build (офлайн из файлов; опционально
+  `-dlq-topic` — чтение DLQ-топика с брокера и сверка) и render
+  (`-from report.json -format text|md|html`).
 - Топики создаются явно (1 партиция, без auto-create). Kafka-клиент — franz-go;
   точки изоляции: `internal/producer/emit.go` (запись), `internal/consumer` (чтение).
 
@@ -50,8 +52,10 @@ RedPanda изолированы в emit.go и consumer; out_of_order — по п
 (1 партиция), `LastTS` монотонный.
 
 Дизайн-спеки: `docs/superpowers/specs/2026-09-23-data-quality-demo-design.md`,
-продолжение — `docs/superpowers/specs/2026-09-23-background-dq-watcher-design.md`
-(фоновый DQ-инспектор, crash-гарантии).
+`docs/superpowers/specs/2026-09-23-background-dq-watcher-design.md`
+(фоновый DQ-инспектор, crash-гарантии),
+`docs/superpowers/specs/2026-09-24-audit-dlq-report-design.md` (audit: DLQ-топик +
+рендер MD/HTML; idle-stop чтение DLQ — ListOffsets сломан в RedPanda v26.2.3).
 
 ## 5. Домены / модули
 
@@ -64,7 +68,7 @@ RedPanda изолированы в emit.go и consumer; out_of_order — по п
 | `internal/dq` | фоновый DQ-инспектор: tap (ограниченная очередь) + один воркер (checks, findings, DLQ, агрегация); без kgo |
 | `internal/consumer` | wiring: read → DQ-тап → marks-коммит («только обработанное») → report |
 | `internal/report` | findings JSONL, агрегация, caught/total |
-| `internal/audit` | оффлайн-аудит: precision/recall по тегам, DLQ по причинам, таймлайн |
+| `internal/audit` | аудит: precision/recall по тегам, DLQ (офлайн + из топика, idle-stop), таймлайн; рендер отчёта text/md/html, LoadJSON |
 
 Каталоги: `cmd/{producer,consumer,audit}/`, `internal/{events,producer,checks,
 dq,consumer,report,audit}/`, `docker-compose.yml`.
@@ -74,6 +78,10 @@ dq,consumer,report,audit}/`, `docker-compose.yml`.
 - RedPanda только локально (docker-compose), один узел.
 - Малые объёмы: тысячи сообщений.
 - Синтетические данные.
+- Все артефакты прогонов — в `out/` (gitignore, создаётся автоматически;
+  `make clean` удаляет). У брокера нет volumes: данные топиков стираются при
+  `docker compose down` — `audit -dlq-topic` работает только пока брокер жив
+  (в `make demo` audit прогоняется до broker-down).
 
 ## 7. Риски
 
@@ -127,5 +135,5 @@ DoD фичи:
 ### Default (root)
 TEST_COMMAND: "go test ./..."
 BUILD_COMMAND: "go build ./..."
-E2E_COMMAND: none
+E2E_COMMAND: "make demo"
 LINT_COMMAND: "golangci-lint run"
