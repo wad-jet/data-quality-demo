@@ -1,4 +1,4 @@
-# data_quality_demo
+# Data Quality Demo (Kafka/RedPanda)
 
 Этот проект разработан с помощью [maestro](https://github.com/wad-jet/maestro) — инструмента, который автоматизирует разработку фич с помощью ИИ-агентов (дизайн → спецификация → план → реализация → ревью → мерж).
 
