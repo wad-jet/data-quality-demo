@@ -17,6 +17,8 @@ dependencies:
       path: skills/manual-docs
     - url: https://github.com/obra/superpowers
       path: skills
+    - url: https://github.com/sammcj/agentic-coding
+      path: Skills_disabled/diataxis-documentation
   commands:
     - url: https://github.com/wad-jet/maestro
       path: commands

@@ -1,6 +1,47 @@
-generated_at: '2026-09-23T13:36:05.962554+00:00'
+generated_at: '2026-09-24T07:20:52.344325+00:00'
 agpack_version: 0.3.1
 installed:
+- url: https://github.com/wad-jet/maestro
+  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  type: skill
+  deployed_files:
+  - .opencode/skills/maestro-setup/SKILL.md
+  - .opencode/skills/maestro-setup/init-context.md
+  path: skills/maestro-setup
+- url: https://github.com/wad-jet/maestro
+  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  type: skill
+  deployed_files:
+  - .opencode/skills/maestro-feedback-report/SKILL.md
+  - .opencode/skills/maestro-feedback-report/timeline.mjs
+  - .opencode/skills/maestro-feedback-report/timeline.test.mjs
+  path: skills/maestro-feedback-report
+- url: https://github.com/wad-jet/maestro
+  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  type: skill
+  deployed_files:
+  - .opencode/skills/manual-docs/SKILL.md
+  path: skills/manual-docs
+- url: https://github.com/wad-jet/maestro
+  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  type: skill
+  deployed_files:
+  - .opencode/skills/maestro-design/SKILL.md
+  path: skills/maestro-design
+- url: https://github.com/wad-jet/maestro
+  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  type: skill
+  deployed_files:
+  - .opencode/skills/maestro-assistant/SKILL.md
+  path: skills/maestro-assistant
+- url: https://github.com/sammcj/agentic-coding
+  resolved_ref: 6ee2ba1a993b2f2e11e3f9fa4c53dda42e3c2337
+  type: skill
+  deployed_files:
+  - .opencode/skills/diataxis-documentation/SKILL.md
+  - .opencode/skills/diataxis-documentation/principles.md
+  - .opencode/skills/diataxis-documentation/reference.md
+  path: Skills_disabled/diataxis-documentation
 - url: https://github.com/obra/superpowers
   resolved_ref: 5bf4e78011075bcfc0dc295f0724994cd123ee71
   type: skill
@@ -82,40 +123,7 @@ installed:
   - .opencode/skills/writing-skills/testing-skills-with-subagents.md
   path: skills
 - url: https://github.com/wad-jet/maestro
-  resolved_ref: 46b0dd9763f07670c80e9c0cb9be42ca4cec0982
-  type: skill
-  deployed_files:
-  - .opencode/skills/maestro-assistant/SKILL.md
-  path: skills/maestro-assistant
-- url: https://github.com/wad-jet/maestro
-  resolved_ref: 46b0dd9763f07670c80e9c0cb9be42ca4cec0982
-  type: skill
-  deployed_files:
-  - .opencode/skills/maestro-setup/SKILL.md
-  - .opencode/skills/maestro-setup/init-context.md
-  path: skills/maestro-setup
-- url: https://github.com/wad-jet/maestro
-  resolved_ref: 46b0dd9763f07670c80e9c0cb9be42ca4cec0982
-  type: skill
-  deployed_files:
-  - .opencode/skills/manual-docs/SKILL.md
-  path: skills/manual-docs
-- url: https://github.com/wad-jet/maestro
-  resolved_ref: 46b0dd9763f07670c80e9c0cb9be42ca4cec0982
-  type: skill
-  deployed_files:
-  - .opencode/skills/maestro-feedback-report/SKILL.md
-  - .opencode/skills/maestro-feedback-report/timeline.mjs
-  - .opencode/skills/maestro-feedback-report/timeline.test.mjs
-  path: skills/maestro-feedback-report
-- url: https://github.com/wad-jet/maestro
-  resolved_ref: 46b0dd9763f07670c80e9c0cb9be42ca4cec0982
-  type: skill
-  deployed_files:
-  - .opencode/skills/maestro-design/SKILL.md
-  path: skills/maestro-design
-- url: https://github.com/wad-jet/maestro
-  resolved_ref: 46b0dd9763f07670c80e9c0cb9be42ca4cec0982
+  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
   type: skill
   deployed_files:
   - .opencode/skills/maestro/SKILL.md
@@ -128,13 +136,14 @@ installed:
   - .opencode/skills/maestro/stack-detection.md
   path: skills/maestro
 - url: https://github.com/wad-jet/maestro
-  resolved_ref: 46b0dd9763f07670c80e9c0cb9be42ca4cec0982
+  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
   type: command
   deployed_files:
   - .opencode/commands/maestro-assistant.md
   - .opencode/commands/maestro-design.md
   - .opencode/commands/maestro-feedback-report.md
   - .opencode/commands/maestro-init.md
+  - .opencode/commands/maestro-memory-backup.md
   - .opencode/commands/maestro-memory-prune.md
   - .opencode/commands/maestro-memory-reindex.md
   - .opencode/commands/maestro-memory-report.md
@@ -145,7 +154,7 @@ installed:
   - .opencode/commands/test-agents.md
   path: commands
 - url: https://github.com/wad-jet/maestro
-  resolved_ref: 46b0dd9763f07670c80e9c0cb9be42ca4cec0982
+  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
   type: agent
   deployed_files:
   - .opencode/agents/code-reviewer.md
