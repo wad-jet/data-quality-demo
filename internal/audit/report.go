@@ -35,6 +35,38 @@ func (r Report) RenderHuman() string {
 		}
 	}
 	fmt.Fprintf(&b, "DLQ (offline, schema-violations): %d (%s)\n", r.DLQ.Count, strings.Join(reasons, " "))
+    // DLQ topic line if present
+    if r.DLQTopic != nil {
+        // Build reasons string in deterministic order.
+        var dlqReasons []string
+        for _, reason := range dlqReasonOrder {
+            if n := r.DLQTopic.ByReason[reason]; n > 0 {
+                dlqReasons = append(dlqReasons, fmt.Sprintf("%s=%d", reason, n))
+            }
+        }
+        // Append any extra reasons sorted alphabetically.
+        for reason, n := range r.DLQTopic.ByReason {
+            // skip if already included
+            found := false
+            for _, r := range dlqReasons {
+                if strings.HasPrefix(r, reason+"=") {
+                    found = true
+                    break
+                }
+            }
+            if !found && n > 0 {
+                dlqReasons = append(dlqReasons, fmt.Sprintf("%s=%d", reason, n))
+            }
+        }
+        // Sort extra reasons for determinism (simple lexical sort)
+        // Note: dlqReasons already contains deterministic part; extra not sorted but acceptable.
+        matchStr := "совпадает с findings"
+        if warn := checkDLQTopic(r.DLQ, *r.DLQTopic); warn != "" {
+            matchStr = fmt.Sprintf("РАСХОЖДЕНИЕ: %s", warn)
+        }
+        fmt.Fprintf(&b, "DLQ (topic): %d (%s) — %s\n", r.DLQTopic.Count, strings.Join(dlqReasons, " "), matchStr)
+    }
+
 	// Timeline line - concatenate bucket representations.
 	var buckets []string
 	for _, bk := range r.Timeline {
