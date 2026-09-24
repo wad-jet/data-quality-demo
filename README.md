@@ -73,18 +73,37 @@ make broker-down # docker compose down
 
 ## Аудит (audit)
 
-Независимая проверка качества по готовым файлам (без брокера):
+Независимая проверка качества по готовым файлам (без брокера), а также —
+опционально — чтение реального DLQ-топика (нужен поднятый брокер):
 
     make build   # собирает и bin/audit
+    # Офлайн-режим (без брокера):
     ./bin/audit -ledger ledger.jsonl -findings findings.jsonl -out audit-report.json
+    # Онлайн-режим (нужен брокер): дополнительно читает DLQ-топик и сверяет:
+    ./bin/audit -ledger ledger.jsonl -findings findings.jsonl -dlq-topic dq.orders.dlq -out audit-report.json
+    # Рендер готового отчёта в md/html:
+    ./bin/audit -from audit-report.json -format md -out audit-report.md
+    ./bin/audit -from audit-report.json -format html -out audit-report.html
 
 - В stdout — таблица precision (доля правильных найденных дефектов) / recall (доля найденных дефектов от всех) по 6 дефектам, DLQ по причинам,
   таймлайн, overall; в `audit-report.json` — структурированный отчёт.
-- Ожидаемо (дет-режим seed 42): recall = 100% по всем тегам;
+- **`make demo` сам прогоняет audit** (до останова брокера) с
+  `-dlq-topic dq.orders.dlq` — поэтому `audit-report.json` после демо содержит
+  реальные счётчики DLQ.
+- **Сверка DLQ:** офлайн-секция `dlq` считается из findings («ожидаемое»),
+  `dlq_topic` (при `-dlq-topic`) читается из брокера («факт»). Расхождение
+  показывается в отчёте как `— РАСХОЖДЕНИЕ` и попадает в `warnings`
+  (это данные, а не ошибка: exit 0) — так видны `dlq_errors`, которые не
+  фиксируются ни в одном другом отчёте.
+- Ожидаемо (дет-режим seed 42, 1000 событий): recall = 100% по всем тегам;
   precision = 100% для missing/typedrift/dup/invalidjson;
   ooo (и, в зависимости от тайминга, lag) — precision < 100%
-  (кросс-срабатывание «старого ts» — см. справку).
-- Форматы данных и формулы метрик: `manual_docs/reference/data-formats.md`.
+  (кросс-срабатывание «старого ts» — см. справку);
+  `DLQ: 112 (field_missing=42 type_drift=47 invalid_json=23)`, `dlq_errors=0`.
+- Форматы отчёта: text (stdout) / JSON (`-out`) / Markdown / HTML
+  (`-from … -format md|html`).
+- Форматы данных и формулы метрик: `manual_docs/reference/data-formats.md`;
+  флаги и режимы audit: `manual_docs/reference/audit.md`.
 
 ## Фоновые проверки и устойчивость к краху
 

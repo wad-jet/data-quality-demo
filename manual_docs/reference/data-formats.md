@@ -47,8 +47,14 @@
 `overall{total_defects,caught,recall,findings,false_positives,precision}`,
 `per_tag[{tag,check,total,caught,recall,findings,false_positives,precision,first_ts,last_ts}]`
 (порядок: missing, dup, typedrift, ooo, lag, invalidjson),
-`dlq{count,by_reason{check:count}}`, `timeline[{bucket_s,count}]` (непустые
-по-секундные бакеты по event-time), `warnings[]` (неизвестные значения).
+`dlq{count,by_reason{check:count}}` (офлайн, из findings — «ожидаемое»),
+`dlq_topic{count,by_reason{check:count}}` (`omitempty`, присутствует только в
+онлайн-режиме `-dlq-topic` — фактические счётчики из DLQ-топика; сверка с
+`dlq` → расхождение попадает в `warnings`),
+`ledger_entries` (int, `omitempty` — число строк ledger, для human-заголовка),
+`timeline[{bucket_s,count}]` (непустые
+по-секундные бакеты по event-time), `warnings[]` (неизвестные значения,
+расхождение DLQ и т.п.).
 
 ## Метрики
 
