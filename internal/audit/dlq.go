@@ -150,6 +150,19 @@ func ConsumeDLQ(ctx context.Context, bootstrap, topic string) (DLQTopic, []strin
 		default:
 		}
 
+		// Pre‑poll stop condition check.
+		allDone := true
+		for _, p := range partitions {
+			if lastSeen[p]+1 < endOffsets[p] {
+				allDone = false
+				break
+			}
+		}
+		if allDone {
+			done = true
+			continue
+		}
+
 		fetches := client.PollFetches(ctx)
 		if fetches == nil {
 			if ctx.Err() != nil {
@@ -170,17 +183,6 @@ func ConsumeDLQ(ctx context.Context, bootstrap, topic string) (DLQTopic, []strin
 			}
 		})
 
-		// Evaluate stop condition across all partitions.
-		allDone := true
-		for _, p := range partitions {
-			if lastSeen[p]+1 < endOffsets[p] {
-				allDone = false
-				break
-			}
-		}
-		if allDone {
-			done = true
-		}
 	}
 
 	return result, warnings, nil
