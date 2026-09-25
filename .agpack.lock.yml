@@ -1,15 +1,8 @@
-generated_at: '2026-09-24T07:20:52.344325+00:00'
+generated_at: '2026-09-25T05:56:43.130748+00:00'
 agpack_version: 0.3.1
 installed:
 - url: https://github.com/wad-jet/maestro
-  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
-  type: skill
-  deployed_files:
-  - .opencode/skills/maestro-setup/SKILL.md
-  - .opencode/skills/maestro-setup/init-context.md
-  path: skills/maestro-setup
-- url: https://github.com/wad-jet/maestro
-  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  resolved_ref: 3e9fddf2718ff30345c8d9b45afeb95b170cc6ab
   type: skill
   deployed_files:
   - .opencode/skills/maestro-feedback-report/SKILL.md
@@ -17,23 +10,43 @@ installed:
   - .opencode/skills/maestro-feedback-report/timeline.test.mjs
   path: skills/maestro-feedback-report
 - url: https://github.com/wad-jet/maestro
-  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  resolved_ref: 3e9fddf2718ff30345c8d9b45afeb95b170cc6ab
   type: skill
   deployed_files:
   - .opencode/skills/manual-docs/SKILL.md
   path: skills/manual-docs
 - url: https://github.com/wad-jet/maestro
-  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  resolved_ref: 3e9fddf2718ff30345c8d9b45afeb95b170cc6ab
   type: skill
   deployed_files:
-  - .opencode/skills/maestro-design/SKILL.md
-  path: skills/maestro-design
+  - .opencode/skills/maestro/SKILL.md
+  - .opencode/skills/maestro/auto-ai-decision-prompt.md
+  - .opencode/skills/maestro/custodian-prompt.md
+  - .opencode/skills/maestro/implementer-prompt.md
+  - .opencode/skills/maestro/invariants.md
+  - .opencode/skills/maestro/preview-http-server.cjs
+  - .opencode/skills/maestro/spec-review-prompt.md
+  - .opencode/skills/maestro/stack-detection.md
+  path: skills/maestro
 - url: https://github.com/wad-jet/maestro
-  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  resolved_ref: 3e9fddf2718ff30345c8d9b45afeb95b170cc6ab
+  type: skill
+  deployed_files:
+  - .opencode/skills/maestro-setup/SKILL.md
+  - .opencode/skills/maestro-setup/init-context.md
+  path: skills/maestro-setup
+- url: https://github.com/wad-jet/maestro
+  resolved_ref: 3e9fddf2718ff30345c8d9b45afeb95b170cc6ab
   type: skill
   deployed_files:
   - .opencode/skills/maestro-assistant/SKILL.md
   path: skills/maestro-assistant
+- url: https://github.com/wad-jet/maestro
+  resolved_ref: 3e9fddf2718ff30345c8d9b45afeb95b170cc6ab
+  type: skill
+  deployed_files:
+  - .opencode/skills/maestro-design/SKILL.md
+  path: skills/maestro-design
 - url: https://github.com/sammcj/agentic-coding
   resolved_ref: 6ee2ba1a993b2f2e11e3f9fa4c53dda42e3c2337
   type: skill
@@ -123,20 +136,7 @@ installed:
   - .opencode/skills/writing-skills/testing-skills-with-subagents.md
   path: skills
 - url: https://github.com/wad-jet/maestro
-  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
-  type: skill
-  deployed_files:
-  - .opencode/skills/maestro/SKILL.md
-  - .opencode/skills/maestro/auto-ai-decision-prompt.md
-  - .opencode/skills/maestro/custodian-prompt.md
-  - .opencode/skills/maestro/implementer-prompt.md
-  - .opencode/skills/maestro/invariants.md
-  - .opencode/skills/maestro/preview-http-server.cjs
-  - .opencode/skills/maestro/spec-review-prompt.md
-  - .opencode/skills/maestro/stack-detection.md
-  path: skills/maestro
-- url: https://github.com/wad-jet/maestro
-  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  resolved_ref: 3e9fddf2718ff30345c8d9b45afeb95b170cc6ab
   type: command
   deployed_files:
   - .opencode/commands/maestro-assistant.md
@@ -154,7 +154,7 @@ installed:
   - .opencode/commands/test-agents.md
   path: commands
 - url: https://github.com/wad-jet/maestro
-  resolved_ref: c396bb1fc328dbff1bf7392ddc858b53b092a707
+  resolved_ref: 3e9fddf2718ff30345c8d9b45afeb95b170cc6ab
   type: agent
   deployed_files:
   - .opencode/agents/code-reviewer.md
