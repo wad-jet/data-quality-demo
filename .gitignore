@@ -1,5 +1,6 @@
 .maestro/
 .opencode/
+.agpack.lock.yml
 
 # runtime artifacts
 bin/
